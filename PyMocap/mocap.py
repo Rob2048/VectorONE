@@ -359,31 +359,17 @@ blobdetect.startworkers()
 deviceSerial = GetSerial()
 print('Serial: {}'.format(deviceSerial))
 
-camera = picamera.PiCamera(sensor_mode = 6, clock_mode = 'reset') #'raw'
+camera = picamera.PiCamera(sensor_mode = 6, clock_mode = 'reset')
 camera.sensor_mode = 6
 camera.rotation = 180
 camera.resolution = (1024, 704)
-
-# Daytime
-#camera.framerate = 40
-#camera.shutter_speed = 20000
-#camera.iso = 400
-
-# Night Slow
 camera.framerate = 40
 camera.shutter_speed = 7000
 camera.iso = 800
-
 camera.awb_mode = 'off'
 camera.awb_gains = (1.1, 1.1)
 camera.exposure_mode = 'sports'
-
 camera.framerate_delta = 0
-#camera.framerate = 100
-#camera.shutter_speed = 7000
-#camera.iso = 800
-#camera.shutter_speed = 23000
-#camera.iso = 800
 
 def StopCamera():
 	print('Stopping Camera')
