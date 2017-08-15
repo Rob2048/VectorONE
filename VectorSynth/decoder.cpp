@@ -734,7 +734,7 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 	{
 		Point2f p = matOutPoints.at<cv::Point2f>(i);
 
-		if (p.x >= 0 & p.x < VID_W && p.y >= 0 && p.y < VID_H)
+		if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
 		{
 			NewMarker m = {};
 			m.pos = QVector2D(p.x, p.y);

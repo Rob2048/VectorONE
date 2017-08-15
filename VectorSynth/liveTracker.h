@@ -1,55 +1,48 @@
 #pragma once
 
-#include <QMainWindow>
-#include <QtNetwork>
+#include <QString>
 #include "decoder.h"
 
-QT_USE_NAMESPACE
-
-class LiveTracker : public QObject
+struct MaskElement
 {
-	Q_OBJECT
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t a;
+};
 
+class LiveTracker
+{
 public:
 
-	int				id;
-	bool			accepted;
-	bool			streaming;
-	bool			recording;
-	QTcpSocket*		socket;
-	Decoder*		decoder;
-	QMutex			bufferMutex;
-	uint8_t			postFrameData[VID_W * VID_H * 3];
-	uint8_t			markerData[1024 * 10];
-	int				markerDataSize;
-	int				newFrames;
-	QElapsedTimer*	masterTimer;
-	FILE*			recordFile;
-
-	LiveTracker(int Id, QTcpSocket* Socket, QElapsedTimer* MasterTimer, QObject* Parent);
+	LiveTracker();
 	~LiveTracker();
 
-	void StartRecording();
-	void StopRecording();
+	int			id;
+	uint32_t	serial;
+	QString		name;
+	int			version;
 
-	void RecordData(uint8_t* Data, int Len);
+	int			exposure;
+	int			iso;
+	int			threshold;
+	int			sensitivity;
+	int			targetFps;
 
-signals:
+	float		frames;
+	float		data;
+	float		fps;
+	float		dataRecv;
 
-	void OnDisconnected(LiveTracker* Tracker);
-	void OnNewFrame(LiveTracker* Tracker);
-	void OnNewMarkersFrame(LiveTracker* Tracker);
+	bool		selected;
+	bool		active;
+	bool		connected;
 
-public slots:
+	uint8_t		frameData[VID_W * VID_H * 3];
+	MaskElement	maskData[128 * 88];
 
-	void OnTcpSocketDisconnected();
-	void OnTcpSocketReadyRead();
+	void updateStats();
 
 private:
 
-	uint8_t _recvBuffer[1024 * 1024];
-	int _recvLength;
-	int _recvState;
-	int _recvPacketId;
-	int _recvFrameSize;
 };

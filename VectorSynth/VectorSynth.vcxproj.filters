@@ -70,6 +70,9 @@
     <ClCompile Include="tracker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="trackerConnection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="cameraView.h">
@@ -78,9 +81,9 @@
     <ClInclude Include="decoder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <CustomBuild Include="liveTracker.h">
+    <ClInclude Include="liveTracker.h">
       <Filter>Header Files</Filter>
-    </CustomBuild>
+    </ClInclude>
     <CustomBuild Include="mainwindow.h">
       <Filter>Header Files</Filter>
     </CustomBuild>
@@ -102,18 +105,15 @@
     <ClInclude Include="tracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <CustomBuild Include="trackerConnection.h">
+      <Filter>Header Files</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="debug\moc_cameraView.cpp">
       <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="release\moc_cameraView.cpp">
-      <Filter>Generated Files</Filter>
-    </ClCompile>
-    <ClCompile Include="debug\moc_liveTracker.cpp">
-      <Filter>Generated Files</Filter>
-    </ClCompile>
-    <ClCompile Include="release\moc_liveTracker.cpp">
       <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="debug\moc_mainwindow.cpp">
@@ -138,6 +138,12 @@
       <Filter>Generated Files</Filter>
     </ClCompile>
     <ClCompile Include="release\moc_timelineWidget.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\moc_trackerConnection.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="release\moc_trackerConnection.cpp">
       <Filter>Generated Files</Filter>
     </ClCompile>
     <ClInclude Include="ui_mainwindow.h">

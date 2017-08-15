@@ -25,14 +25,12 @@ MainWindow::MainWindow(QWidget* parent) :
 
 	this->splitDockWidget(ui->dockSceneView, ui->dockTrackers, Qt::Orientation::Horizontal);
 
-	this->tabifyDockWidget(ui->dockProps, ui->dockRecord);
-	this->tabifyDockWidget(ui->dockProps, ui->dockSynth);
+	//this->tabifyDockWidget(ui->dockProps, ui->dockRecord);
+	this->tabifyDockWidget(ui->dockSynth, ui->dockProps);
 	
 	this->resizeDocks({ ui->dockProps, ui->dockTrackers }, { 30, 80 }, Qt::Orientation::Horizontal);
 	//this->resizeDocks({ ui->dockProps, ui->dockTrackers }, { 30, 80 }, Qt::Orientation::Horizontal);
 	//this->resizeDocks({ ui->dockTrackers, ui->dockSceneView }, { 100, 0 }, Qt::Orientation::Vertical);
-
-	ui->dockRecord->raise();
 
 	_glView = new SceneView(ui->sceneViewDockContents);
 	ui->sceneViewDockContents->layout()->addWidget(_glView);
@@ -62,8 +60,9 @@ MainWindow::MainWindow(QWidget* parent) :
 
 	_timeline = new TimelineWidget(this);
 	ui->timelineLayout->addWidget(_timeline);
+	ui->timelineLayout->setAlignment(Qt::AlignTop);
 
-	_cameraView = new CameraView(this);
+	_cameraView = new CameraView(this, this);
 	//ui->cameraViewPanel->layout()->removeWidget(ui->timeline);
 	ui->cameraViewPanel->layout()->addWidget(_cameraView);
 	//ui->cameraViewPanel->layout()->addWidget(ui->timeline);
@@ -87,6 +86,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(_serverWorker, &ServerThreadWorker::OnTrackerDisconnected, this, &MainWindow::OnTrackerDisconnected);
 	connect(_serverWorker, &ServerThreadWorker::OnTrackerFrame, this, &MainWindow::OnTrackerFrame);
 	connect(_serverWorker, &ServerThreadWorker::OnTrackerMarkersFrame, this, &MainWindow::OnTrackerMarkersFrame);
+	connect(_serverWorker, &ServerThreadWorker::OnTrackerInfoUpdate, this, &MainWindow::OnTrackerInfoUpdate);
 	
 	connect(this, &MainWindow::OnServerStart, _serverWorker, &ServerThreadWorker::OnStart);
 	connect(this, &MainWindow::OnSendData, _serverWorker, &ServerThreadWorker::OnSendData);
@@ -94,6 +94,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(this, &MainWindow::OnStartRecording, _serverWorker, &ServerThreadWorker::OnStartRecording);
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
 	connect(this, &MainWindow::OnStopCalibrating, _serverWorker, &ServerThreadWorker::OnStopCalibrating);
+	connect(this, &MainWindow::OnStartViewSteam, _serverWorker, &ServerThreadWorker::OnViewFeed);
 
 	_serverThread.start();
 	emit OnServerStart();
@@ -126,8 +127,8 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->horizontalSlider_2->setMinimum(0);
 	connect(ui->horizontalSlider_2, &QSlider::valueChanged, _serverWorker, &ServerThreadWorker::OnCamThresholdChange);
 
-	ui->horizontalSlider->setMaximum(255);
-	ui->horizontalSlider->setMinimum(0);
+	//ui->horizontalSlider->setMaximum(255);
+	//ui->horizontalSlider->setMinimum(0);
 	//connect(ui->horizontalSlider, &QSlider::valueChanged, _serverWorker, &ServerWorker::OnCamDistortChange);
 
 	ui->txtExposure->setValidator(new QIntValidator(1000, 23000, this));
@@ -147,6 +148,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(ui->chkFindCalib, &QCheckBox::stateChanged, _serverWorker, &ServerThreadWorker::OnFindCalibChanged);
 
 	// Device Table
+	/*
 	ui->tblDevices->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
 	ui->tblDevices->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeMode::Stretch);
 	ui->tblDevices->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeMode::ResizeToContents);
@@ -155,8 +157,10 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->tblDevices->setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
 
 	connect(_deviceListMapper, SIGNAL(mapped(int)), _serverWorker, SLOT(OnViewFeed(int)));
+	*/
 
 	// Take Device Table
+	/*
 	ui->tblTakeDevices->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
 	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeMode::Stretch);
 	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeMode::ResizeToContents);
@@ -167,6 +171,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->tblTakeDevices->setHorizontalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
 	ui->tblTakeDevices->setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
 	connect(ui->tblTakeDevices, &QTableWidget::itemSelectionChanged, this, &MainWindow::OnTakeTrackerTableSelectionChanged);
+	*/
 
 	ui->sldTakeSensitivity->setMaximum(255);
 	ui->sldTakeSensitivity->setMinimum(0);
@@ -191,6 +196,22 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(_playTimer, &QTimer::timeout, this, &MainWindow::OnPlayTimerTick);
 	
 	ui->txtPlaySpeed->setValidator(new QDoubleValidator(0.01, 9.0, 2, this));
+
+	/*
+	ui->scrollArea->setWidgetResizable(true);
+
+	ui->scrollArea->setLayout(new QVBoxLayout());
+
+	QFrame inner = QFrame(ui->scrollArea);
+	inner.setLayout(QVBoxLayout())
+
+	scroll.setWidget(inner) # CRITICAL
+
+	for i in range(40) :
+		b = QPushButton(inner)
+		b.setText(str(i))
+		inner.layout().addWidget(b)
+		*/
 }
 
 MainWindow::~MainWindow()
@@ -287,15 +308,15 @@ void MainWindow::OnTimelineTimerTick()
 			{
 				if (_take->trackers.count() == 2)
 				{
-					_cameraView->camImageA = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-					_cameraView->camNameA = _take->trackers[0]->name;
-					_cameraView->camImageB = QImage((uchar*)_take->trackers[1]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-					_cameraView->camNameB = _take->trackers[1]->name;
+					//_cameraView->camImageA = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
+					//_cameraView->camNameA = _take->trackers[0]->name;
+					//_cameraView->camImageB = QImage((uchar*)_take->trackers[1]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
+					//_cameraView->camNameB = _take->trackers[1]->name;
 					_cameraView->mode = 1;
 				}
 				else
 				{
-					_cameraView->camImage = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
+					//_cameraView->camImage = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
 					_cameraView->mode = 0;
 				}
 			}
@@ -336,83 +357,75 @@ void MainWindow::OnCamSensitivityChange(int Value)
 	qDebug() << "Cam Sensitivity:" << Value;
 }
 
-void MainWindow::OnTrackerConnected(LiveTracker* Tracker)
-{
-	_frameCounter = 0;
-	_newFrames = 0;
-	//ui->lstDevices->addItem(Socket->peerAddress().toString());
+void MainWindow::OnTrackerConnected(int TrackerId)
+{	
+	TrackerConnection* tracker = _serverWorker->LockConnection(TrackerId);
 
-	// TODO: Only add tracker in list when all info is exchanged.
+	if (!tracker)
+		return;
 
-	int row = ui->tblDevices->rowCount();
-	ui->tblDevices->insertRow(row);
-	
-	QTableWidgetItem* tblItem = new QTableWidgetItem("Device Id");
-	tblItem->setFlags(Qt::ItemFlag::NoItemFlags);// Qt::ItemFlag::ItemIsEnabled | Qt::ItemFlag::ItemIsSelectable);
-	ui->tblDevices->setItem(row, 0, tblItem);
+	LiveTracker* live = new LiveTracker();
+	live->id = tracker->id;
+	liveTrackers[live->id] = live;
 
-	tblItem = new QTableWidgetItem(Tracker->socket->peerAddress().toString());
-	tblItem->setFlags(Qt::ItemFlag::NoItemFlags);
-	ui->tblDevices->setItem(row, 1, tblItem);
+	_serverWorker->UnlockConnection(tracker);
 
-	QWidget *pWidget = new QWidget();
-	QCheckBox *pCheckBox = new QCheckBox();
-	QHBoxLayout *pLayout = new QHBoxLayout(pWidget);
-	pLayout->addWidget(pCheckBox);
-	pLayout->setAlignment(Qt::AlignCenter);
-	pLayout->setContentsMargins(0, 0, 0, 0);
-	pWidget->setLayout(pLayout);
-	ui->tblDevices->setCellWidget(row, 2, pWidget);
-
-	pWidget = new QWidget();
-	QPushButton *pPushButton = new QPushButton();
-	pPushButton->setText("View");
-	pLayout = new QHBoxLayout(pWidget);
-	pLayout->addWidget(pPushButton);
-	pLayout->setAlignment(Qt::AlignCenter);
-	pLayout->setContentsMargins(0, 0, 0, 0);
-	pWidget->setLayout(pLayout);
-	ui->tblDevices->setCellWidget(row, 3, pWidget);
-
-	_deviceListMapper->setMapping(pPushButton, Tracker->id);
-	connect(pPushButton, SIGNAL(clicked()), _deviceListMapper, SLOT(map()));
-
-	//Socket->write("sc\n");
-	//QByteArray test("sc\n");
-	//emit OnSendData(1, test);
-}
-
-void MainWindow::OnTrackerDisconnected(LiveTracker* Tracker)
-{
-	qDebug() << "GUI Discon";
-}
-
-void MainWindow::OnTrackerFrame(LiveTracker* Tracker)
-{
-	// TODO: Check what we need to do with this frame: display, ignore, etc...
-	Tracker->bufferMutex.lock();
-
-	_cameraView->camImage = QImage((uchar*)Tracker->postFrameData, VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-	_cameraView->mode = 0;
 	_cameraView->update();
-	_newFrames += Tracker->newFrames;
-	Tracker->bufferMutex.unlock();
-
-	++_frameCounter;
 }
 
-void MainWindow::OnTrackerMarkersFrame(LiveTracker* Tracker)
+void MainWindow::OnTrackerDisconnected(int TrackerId)
 {
+	delete liveTrackers[TrackerId];
+	liveTrackers.erase(TrackerId);
+	_cameraView->update();
+}
+
+void MainWindow::OnTrackerFrame(int TrackerId)
+{
+	TrackerConnection* tracker = _serverWorker->LockConnection(TrackerId);
+
+	if (!tracker)
+		return;
+
+	LiveTracker* live = liveTrackers[tracker->id];
+
+	memcpy(live->frameData, tracker->postFrameData, VID_W * VID_H * 3);
+	live->frames += tracker->decoder->newFrames;
+	tracker->decoder->newFrames = 0;
+	live->data += tracker->decoder->dataRecvBytes;
+	tracker->decoder->dataRecvBytes = 0;
+
+	_serverWorker->UnlockConnection(tracker);
+
+	_cameraView->update();
+}
+void MainWindow::OnTrackerInfoUpdate(int TrackerId)
+{
+	TrackerConnection* tracker = _serverWorker->LockConnection(TrackerId);
+
+	if (!tracker)
+		return;
+
+	LiveTracker* live = liveTrackers[tracker->id];
+	live->connected = tracker->accepted;
+	live->serial = tracker->serial;
+	live->version = tracker->version;
+	live->name = tracker->name;
+
+	_serverWorker->UnlockConnection(tracker);
+
+	_cameraView->update();
+}
+
+void MainWindow::OnTrackerMarkersFrame(int TrackerId)
+{
+	/*
 	Tracker->bufferMutex.lock();
 
 	memcpy(_cameraView->markerData, Tracker->markerData, Tracker->markerDataSize);
 	_cameraView->markerDataSize = Tracker->markerDataSize;
-	_cameraView->mode = 3;
-	_cameraView->update();
-	_newFrames += 1;
 	Tracker->bufferMutex.unlock();
-
-	++_frameCounter;
+	*/
 }
 
 void MainWindow::OnStartTimeSyncClick()
@@ -438,7 +451,8 @@ void MainWindow::OnCalibrationStopClick()
 {
 	emit OnStopCalibrating();
 	
-	LiveTracker* tracker = _serverWorker->_GetTracker(1);
+	/*
+	TrackerConnection* tracker = _serverWorker->_GetTracker(1);
 
 	qDebug() << "Calibration Image Count:" << tracker->decoder->_calibImageCount;
 
@@ -494,6 +508,7 @@ void MainWindow::OnCalibrationStopClick()
 
 	ui->lblCalibImageCount->setText(QString("Images: ") + QString::number(tracker->decoder->_calibImageCount));
 	ui->lblCalibError->setText(QString("Error: ") + QString::number(rms));
+	*/
 }
 
 void MainWindow::OnTimerTick()
@@ -502,13 +517,10 @@ void MainWindow::OnTimerTick()
 	_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress::Broadcast, 45454);
 	qDebug() << broadcastMsg;
 
-	_fps = _frameCounter;
-	_frameCounter = 0;
-	_cameraView->totalFps = _newFrames;
-	_cameraView->fps = _fps;
-	//_cameraView->dataRecvBytes = _serverWorker->decoder->dataRecvBytes / 1024.0f;
-	//_serverWorker->decoder->dataRecvBytes = 0;
-	_newFrames = 0;;
+	for (std::map<int, LiveTracker*>::iterator it = liveTrackers.begin(); it != liveTrackers.end(); ++it)
+	{
+		it->second->updateStats();
+	}
 }
 
 void MainWindow::OnSceneViewTimerTick()
@@ -528,7 +540,7 @@ void MainWindow::OnLoadTakeClick()
 
 	_timeline->setParams(_take->timeFrames - 2);
 
-	RefreshTakeDeviceList();
+	//RefreshTakeDeviceList();
 
 	_timelineCurrentFrame = -1;
 	_timelineRequestedFrame = 0;
@@ -544,6 +556,7 @@ void MainWindow::OnSaveTakeClick()
 
 void MainWindow::RefreshTakeDeviceList()
 {
+	/*
 	//ui->tblTakeDevices->clear();
 	ui->tblTakeDevices->setRowCount(0);
 
@@ -592,10 +605,12 @@ void MainWindow::RefreshTakeDeviceList()
 			ui->tblTakeDevices->setCellWidget(row, 3, pWidget);
 		}
 	}
+	*/
 }
 
 void MainWindow::OnTakeTrackerTableSelectionChanged()
 {
+	/*
 	QList<QTableWidgetItem*> selectedRows = ui->tblTakeDevices->selectedItems();
 
 	if (selectedRows.count() > 0)
@@ -614,6 +629,7 @@ void MainWindow::OnTakeTrackerTableSelectionChanged()
 		ui->lblTakeTrackerId->setText("(None)");
 		ui->lblTakeTrackerInfo->setText("");
 	}
+	*/
 }
 
 void MainWindow::OnTakeOffsetEditingFinished()
@@ -732,4 +748,19 @@ void MainWindow::OnBuildFundamentalMatClicked()
 	{
 		_take->BuildFundamental(_timeline->rangeStartFrame, _timeline->rangeEndFrame, _glView);
 	}
+}
+
+void MainWindow::viewFeed(int TrackedId, bool Image)
+{
+	emit OnStartViewSteam(TrackedId, Image);
+}
+
+void MainWindow::selectTracker(LiveTracker* Tracker)
+{
+	selectedTracker = Tracker->id;
+
+	ui->txtId->setText(Tracker->name);
+	ui->txtExposure->setText(QString::number(Tracker->exposure));
+	ui->txtIso->setText(QString::number(Tracker->iso));
+	ui->txtFps->setText(QString::number(Tracker->targetFps));
 }

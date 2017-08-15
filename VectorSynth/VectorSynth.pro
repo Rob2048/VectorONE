@@ -33,8 +33,9 @@ SOURCES += main.cpp \
         take.cpp \
         timelineWidget.cpp \
         objLoader.cpp \
-        liveTracker.cpp \
-        serverThreadWorker.cpp
+        trackerConnection.cpp \
+        serverThreadWorker.cpp \
+        liveTracker.cpp
 
 HEADERS  += mainwindow.h \
 			cameraView.h \
@@ -44,8 +45,9 @@ HEADERS  += mainwindow.h \
 			take.h \
 			timelineWidget.h \
 			objLoader.h \
-			liveTracker.h \
-        	serverThreadWorker.h
+			trackerConnection.h \
+        	serverThreadWorker.h \
+        	liveTracker.h
 
 FORMS    += mainwindow.ui
 

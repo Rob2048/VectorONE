@@ -3,8 +3,11 @@
 #include <QWidget>
 
 #include "take.h"
+#include "liveTracker.h"
 
 QT_USE_NAMESPACE
+
+class MainWindow;
 
 struct blob
 {
@@ -22,34 +25,23 @@ class CameraView : public QWidget
 
 public:
 
-	CameraView(QWidget* Parent = 0);
+	CameraView(QWidget* Parent, MainWindow* Main);
 
+	MainWindow* main;
+	
 	int			mode;
 
-	// Live view.
 	QImage		camImage;
-	float		fps;
-	float		totalFps;
-	float		dataRecvBytes;
-
-	uint8_t		markerData[1024 * 10];
-	int			markerDataSize;
-
+	
 	// Take view.
 	Take*		take;
 	int			timelineFrame;
-
-	int			timestampA;
-	QImage		camImageA;
-	QString		camNameA;
-
-	int			timestampB;
-	QImage		camImageB;
-	QString		camNameB;
-
+	
 	// Global view controls.
 	QVector2D	viewTranslate;
 	float		viewZoom;
+
+	int hoveredId;
 
 protected:
 
@@ -63,6 +55,7 @@ private:
 
 	QFont _mainFont;
 	QFont _detailFont;
+	QFont _largeFont;
 
 	bool		_mouseLeft;
 	bool		_mouseRight;
@@ -73,4 +66,7 @@ private:
 
 	QPointF _GetVPointF(float X, float Y);
 	QPoint _GetVPoint(float X, float Y);
+
+	LiveTracker* _GetTracker(int X, int Y, QVector2D* TrackerSpace = 0);
+	void _DeselectTrackers();
 };

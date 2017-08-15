@@ -44,17 +44,18 @@ serverFile = None
 # Helper functions.
 #------------------------------------------------------------------------------
 def GetSerial():
-  cpuserial = "0000000000000000"
+  cpuserial = "00000000"
+
   try:
     f = open('/proc/cpuinfo','r')
     for line in f:
       if line[0:6]=='Serial':
-        cpuserial = line[10:26]
+        cpuserial = line[18:26]
     f.close()
   except:
-    cpuserial = "ERROR000000000"
+    pass
 
-  return cpuserial
+  return int(cpuserial, 16)
 
 #------------------------------------------------------------------------------
 # RGB LED Setup.
@@ -187,6 +188,7 @@ class NetworkReaderThread(threading.Thread):
 		global camera
 		global setCamFps
 		global setCamMode
+		global deviceSerial
 
 		print('Starting Network Thread')
 
@@ -244,7 +246,7 @@ class NetworkReaderThread(threading.Thread):
 							setSyncTime = True
 							SyncTime(self.serverSocket, serverFile)
 						elif args[0] == 'gi':
-							data = struct.pack('II', 4, version)
+							data = struct.pack('III', 4, version, deviceSerial)
 							netSend.put(data);
 						elif args[0] == 'cm':
 							print('Set Mode ' + args[1])
@@ -275,7 +277,7 @@ class NetworkWriterThread(threading.Thread):
 			try:
 				serverFile.write(data)
 				serverFile.flush();
-			except:
+			except Exception,e:
 				print "Net Write Ex:" + str(e)
 				#continue
 

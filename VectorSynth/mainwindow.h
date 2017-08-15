@@ -6,8 +6,9 @@
 #include "tracker.h"
 #include "take.h"
 #include "timelineWidget.h"
-#include "liveTracker.h"
+#include "trackerConnection.h"
 #include "serverThreadWorker.h"
+#include "liveTracker.h"
 
 class CameraView;
 class SceneView;
@@ -37,6 +38,7 @@ signals:
 	void OnStartRecording();
 	void OnStartCalibrating(int TrackerId);
 	void OnStopCalibrating();
+	void OnStartViewSteam(int TrackedId, bool Image);
 
 public slots:
 
@@ -50,11 +52,11 @@ public slots:
 	void OnTimelineTimerTick();
 	void OnSceneViewTimerTick();
 
-	void OnTrackerConnected(LiveTracker* Tracker);
-	void OnTrackerDisconnected(LiveTracker* Tracker);
-
-	void OnTrackerFrame(LiveTracker* Connection);
-	void OnTrackerMarkersFrame(LiveTracker* Connection);
+	void OnTrackerConnected(int TrackerId);
+	void OnTrackerDisconnected(int TrackerId);
+	void OnTrackerFrame(int TrackerId);
+	void OnTrackerMarkersFrame(int TrackerId);
+	void OnTrackerInfoUpdate(int TrackerId);
 
 	void OnTakeTrackerTableSelectionChanged();
 
@@ -103,14 +105,9 @@ private:
 	SceneView*			_glView;
 	ServerThreadWorker*	_serverWorker;
 	QThread				_serverThread;
-	std::vector<Tracker*> _trackers;
 	QSignalMapper*		_deviceListMapper;
 
 	Take*				_take;
-
-	int					_frameCounter;
-	int					_newFrames;
-	float				_fps;
 
 	int					_timelineRequestedFrame;
 	int					_timelineCurrentFrame;
@@ -123,5 +120,13 @@ private:
 	bool _drawMarkers;
 
 	void _LoadTakeTracker(int Id);
-	void _AdvanceTakeFrame(int Camera, int Frames);	
+	void _AdvanceTakeFrame(int Camera, int Frames);
+
+public:
+
+	std::map<int, LiveTracker*> liveTrackers;
+	int		selectedTracker;
+
+	void viewFeed(int TrackedId, bool Image);
+	void selectTracker(LiveTracker* Tracker);
 };
