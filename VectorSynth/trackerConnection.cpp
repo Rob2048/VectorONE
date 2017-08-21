@@ -39,8 +39,14 @@ void TrackerConnection::Unlock()
 void TrackerConnection::StartRecording()
 {
 	StopRecording();
+
 	char fileName[256];
-	sprintf(fileName, "project\\take\\%d.trakvid", id);
+	sprintf(fileName, "project\\take\\%u.mask", serial);
+	FILE* maskFile = fopen(fileName, "wb");
+	fwrite(maskData, sizeof(maskData), 1, maskFile);
+	fclose(maskFile);
+	
+	sprintf(fileName, "project\\take\\%u.trakvid", serial);
 	recordFile = fopen(fileName, "wb");
 	recording = true;
 }

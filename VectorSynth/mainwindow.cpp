@@ -15,6 +15,8 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->setupUi(this);
 	ui->centralWidget->hide();
 
+	_mainTimer.start();
+
 	//ui->dockLog->hide();
 	//ui->dockSceneView->hide();
 	
@@ -63,11 +65,16 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->timelineLayout->setAlignment(Qt::AlignTop);
 
 	_cameraView = new CameraView(this, this);
+	_cameraView->trackers = &_liveTrackers;
 	//ui->cameraViewPanel->layout()->removeWidget(ui->timeline);
 	ui->cameraViewPanel->layout()->addWidget(_cameraView);
 	//ui->cameraViewPanel->layout()->addWidget(ui->timeline);
 
-	_udpSocket = new QUdpSocket(this);
+	_udpSocket = new QUdpSocket(this);	
+	
+	_recvSocket = new QUdpSocket(this);
+	_recvSocket->bind(45455);
+	connect(_recvSocket, &QUdpSocket::readyRead, this, &MainWindow::OnBroadcastRead);
 
 	_timer = new QTimer();
 	_timer->start(1000);
@@ -95,6 +102,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
 	connect(this, &MainWindow::OnStopCalibrating, _serverWorker, &ServerThreadWorker::OnStopCalibrating);
 	connect(this, &MainWindow::OnStartViewSteam, _serverWorker, &ServerThreadWorker::OnViewFeed);
+	connect(this, &MainWindow::OnMaskChange, _serverWorker, &ServerThreadWorker::OnMaskChange);
 
 	_serverThread.start();
 	emit OnServerStart();
@@ -300,6 +308,7 @@ void MainWindow::OnTimelineTimerTick()
 			_glView->timelineFrame = _timelineRequestedFrame;
 			_cameraView->take = _take;
 
+			/*
 			if (_drawMarkers)
 			{	
 				_cameraView->mode = 2;
@@ -320,6 +329,7 @@ void MainWindow::OnTimelineTimerTick()
 					_cameraView->mode = 0;
 				}
 			}
+			*/
 			
 			_cameraView->update();
 
@@ -327,6 +337,13 @@ void MainWindow::OnTimelineTimerTick()
 		}
 	}
 }	
+
+void MainWindow::changeMask(LiveTracker* Tracker)
+{
+	QByteArray data((char*)Tracker->maskData, 128 * 88);
+
+	emit OnMaskChange(Tracker->id, data);
+}
 
 void MainWindow::OnFpsEditingFinished()
 {
@@ -366,7 +383,7 @@ void MainWindow::OnTrackerConnected(int TrackerId)
 
 	LiveTracker* live = new LiveTracker();
 	live->id = tracker->id;
-	liveTrackers[live->id] = live;
+	_liveTrackers[live->id] = live;
 
 	_serverWorker->UnlockConnection(tracker);
 
@@ -375,8 +392,8 @@ void MainWindow::OnTrackerConnected(int TrackerId)
 
 void MainWindow::OnTrackerDisconnected(int TrackerId)
 {
-	delete liveTrackers[TrackerId];
-	liveTrackers.erase(TrackerId);
+	delete _liveTrackers[TrackerId];
+	_liveTrackers.erase(TrackerId);
 	_cameraView->update();
 }
 
@@ -387,7 +404,7 @@ void MainWindow::OnTrackerFrame(int TrackerId)
 	if (!tracker)
 		return;
 
-	LiveTracker* live = liveTrackers[tracker->id];
+	LiveTracker* live = _liveTrackers[tracker->id];
 
 	memcpy(live->frameData, tracker->postFrameData, VID_W * VID_H * 3);
 	live->frames += tracker->decoder->newFrames;
@@ -406,7 +423,7 @@ void MainWindow::OnTrackerInfoUpdate(int TrackerId)
 	if (!tracker)
 		return;
 
-	LiveTracker* live = liveTrackers[tracker->id];
+	LiveTracker* live = _liveTrackers[tracker->id];
 	live->connected = tracker->accepted;
 	live->serial = tracker->serial;
 	live->version = tracker->version;
@@ -517,7 +534,7 @@ void MainWindow::OnTimerTick()
 	_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress::Broadcast, 45454);
 	qDebug() << broadcastMsg;
 
-	for (std::map<int, LiveTracker*>::iterator it = liveTrackers.begin(); it != liveTrackers.end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = _liveTrackers.begin(); it != _liveTrackers.end(); ++it)
 	{
 		it->second->updateStats();
 	}
@@ -534,16 +551,14 @@ void MainWindow::OnLoadTakeClick()
 		delete _take;
 
 	_take = new Take();
-	//_take->LoadTake("test_rod1");
 	_take->LoadTake("take");
 	_glView->take = _take;
 
 	_timeline->setParams(_take->timeFrames - 2);
-
-	//RefreshTakeDeviceList();
-
 	_timelineCurrentFrame = -1;
 	_timelineRequestedFrame = 0;
+
+	_cameraView->trackers = &_take->liveTrackers;
 }
 
 void MainWindow::OnSaveTakeClick()
@@ -552,84 +567,6 @@ void MainWindow::OnSaveTakeClick()
 		return;
 
 	_take->Save();
-}
-
-void MainWindow::RefreshTakeDeviceList()
-{
-	/*
-	//ui->tblTakeDevices->clear();
-	ui->tblTakeDevices->setRowCount(0);
-
-	for (int i = 0; i < _take->trackers.count(); ++i)
-	{
-		TakeTracker* tracker = _take->trackers[i];
-
-		int row = ui->tblTakeDevices->rowCount();
-		ui->tblTakeDevices->insertRow(row);
-
-		QTableWidgetItem* tblItem = new QTableWidgetItem(tracker->name);
-		//tblItem->setFlags(Qt::ItemFlag::NoItemFlags);
-		tblItem->setFlags(Qt::ItemFlag::ItemIsEnabled | Qt::ItemFlag::ItemIsSelectable);
-		ui->tblTakeDevices->setItem(row, 0, tblItem);
-		
-		{
-			QWidget *pWidget = new QWidget();
-			QCheckBox *pCheckBox = new QCheckBox();
-			QHBoxLayout *pLayout = new QHBoxLayout(pWidget);
-			pLayout->addWidget(pCheckBox);
-			pLayout->setAlignment(Qt::AlignCenter);
-			pLayout->setContentsMargins(0, 0, 0, 0);
-			pWidget->setLayout(pLayout);
-			ui->tblTakeDevices->setCellWidget(row, 1, pWidget);
-		}
-
-		{
-			QWidget *pWidget = new QWidget();
-			QCheckBox *pCheckBox = new QCheckBox();
-			QHBoxLayout *pLayout = new QHBoxLayout(pWidget);
-			pLayout->addWidget(pCheckBox);
-			pLayout->setAlignment(Qt::AlignCenter);
-			pLayout->setContentsMargins(0, 0, 0, 0);
-			pWidget->setLayout(pLayout);
-			ui->tblTakeDevices->setCellWidget(row, 2, pWidget);
-		}
-
-		{
-			QWidget *pWidget = new QWidget();
-			QCheckBox *pCheckBox = new QCheckBox();
-			QHBoxLayout *pLayout = new QHBoxLayout(pWidget);
-			pLayout->addWidget(pCheckBox);
-			pLayout->setAlignment(Qt::AlignCenter);
-			pLayout->setContentsMargins(0, 0, 0, 0);
-			pWidget->setLayout(pLayout);
-			ui->tblTakeDevices->setCellWidget(row, 3, pWidget);
-		}
-	}
-	*/
-}
-
-void MainWindow::OnTakeTrackerTableSelectionChanged()
-{
-	/*
-	QList<QTableWidgetItem*> selectedRows = ui->tblTakeDevices->selectedItems();
-
-	if (selectedRows.count() > 0)
-	{
-		qDebug() << "Select Tracker:" << selectedRows[0]->row();
-		_selectedTakeTracker = _take->trackers[selectedRows[0]->row()];
-		ui->lblTakeTrackerId->setText(QString::number(_selectedTakeTracker->takeId) + ": " + _selectedTakeTracker->name);
-		ui->lblTakeTrackerInfo->setText(QString::number(_selectedTakeTracker->fps) + "fps " + QString::number(_selectedTakeTracker->exposure) + "exp " + QString::number(_selectedTakeTracker->iso) + "iso");
-		ui->sldTakeThreshold->setValue(_selectedTakeTracker->threshold * 255.0f);
-		ui->sldTakeSensitivity->setValue(_selectedTakeTracker->sensitivity * 255.0f);
-		ui->txtTakeOffset->setText(QString::number(_selectedTakeTracker->frameOffset));
-	}
-	else
-	{
-		_selectedTakeTracker = 0;
-		ui->lblTakeTrackerId->setText("(None)");
-		ui->lblTakeTrackerInfo->setText("");
-	}
-	*/
 }
 
 void MainWindow::OnTakeOffsetEditingFinished()
@@ -664,10 +601,12 @@ void MainWindow::OnTakeThresholdChange(int Value)
 
 void MainWindow::OnGenerateMaskClicked()
 {
-	if (_take)
+	LiveTracker* tracker = GetTracker(_selectedTracker);
+
+	if (tracker)
 	{
-		_take->GenerateMask();
-		_timelineCurrentFrame = -1;
+		tracker->generateMask();
+		changeMask(tracker);
 	}
 }
 
@@ -757,10 +696,35 @@ void MainWindow::viewFeed(int TrackedId, bool Image)
 
 void MainWindow::selectTracker(LiveTracker* Tracker)
 {
-	selectedTracker = Tracker->id;
+	_selectedTracker = Tracker->id;
 
 	ui->txtId->setText(Tracker->name);
 	ui->txtExposure->setText(QString::number(Tracker->exposure));
 	ui->txtIso->setText(QString::number(Tracker->iso));
 	ui->txtFps->setText(QString::number(Tracker->targetFps));
+}
+
+LiveTracker* MainWindow::GetTracker(int TrackerId)
+{
+	if (_liveTrackers.find(TrackerId) ==_liveTrackers.end())
+	{
+		return 0;
+	}
+
+	return _liveTrackers[TrackerId];
+}
+
+void MainWindow::OnBroadcastRead()
+{
+	static double prevTime = 0;
+
+	QNetworkDatagram packet = _recvSocket->receiveDatagram();
+
+	QString time = QString(packet.data());
+	double ts = (_mainTimer.nsecsElapsed() / 1000) / 1000.0f;
+
+	double td = ts - prevTime;
+	prevTime = ts;
+
+	qDebug() << "Bcast " << td << QHostAddress(packet.senderAddress().toIPv4Address()).toString() << time;
 }

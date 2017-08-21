@@ -30,6 +30,8 @@ CameraView::CameraView(QWidget* Parent, MainWindow* Main) :
 
 	_mouseLeft = false;
 	_mouseRight = false;
+	_mouseDownTrackerId = 0;
+	_editMaskMode = 0;
 }
 
 QPointF CameraView::_GetVPointF(float X, float Y)
@@ -60,7 +62,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 
 	int trackerCount = 0;
 
-	for (std::map<int, LiveTracker*>::iterator it = main->liveTrackers.begin(); it != main->liveTrackers.end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
 		float tX = trackerCount * (VID_W + 10);
@@ -70,10 +72,10 @@ void CameraView::paintEvent(QPaintEvent* Event)
 		QImage img = QImage((uchar*)tracker->frameData, VID_W, VID_H, QImage::Format::Format_RGB888);
 		qp.drawImage(QPointF(tX + -0.5f, -0.5f), img);
 
-		QImage maskImg = QImage((uchar*)tracker->maskData, 128, 88, QImage::Format::Format_RGBA8888);
+		QImage maskImg = QImage((uchar*)tracker->maskVisualData, 128, 88, QImage::Format::Format_RGBA8888);
 		qp.drawImage(QRectF(tX + -0.5f, -0.5f, VID_W, VID_H), maskImg);
 
-		if (!tracker->connected)
+		if (!tracker->connected && !tracker->loaded)
 		{
 			qp.setPen(QPen(QColor(200, 50, 50), 2.0f / viewZoom));
 			qp.setFont(_largeFont);
@@ -106,6 +108,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 		trackerCount++;
 	}
 
+	// NOTE: Realtime blobs.
 	if (mode == 3)
 	{
 		//qp.drawImage(QPointF(-0.5f, -0.5f), camImage);
@@ -174,12 +177,15 @@ void CameraView::paintEvent(QPaintEvent* Event)
 						}
 						
 						for (int i = 0; i < tracker->vidFrameData[fI].newMarkers.count(); ++i)
-						{
-							qp.setBrush(QBrush(QColor::fromRgb(0, 255, 0), Qt::BrushStyle::SolidPattern));
+						{	
 							qp.setPen(Qt::PenStyle::NoPen);
 
 							NewMarker* m = &tracker->vidFrameData[fI].newMarkers[i];
 
+							qp.setBrush(QBrush(QColor::fromRgb(0, 0, 255), Qt::BrushStyle::SolidPattern));
+							qp.drawEllipse(_GetVPointF(tX + m->distPos.x(), m->distPos.y()), 2.0f, 2.0f);
+
+							qp.setBrush(QBrush(QColor::fromRgb(0, 255, 0), Qt::BrushStyle::SolidPattern));
 							qp.drawEllipse(_GetVPointF(tX + m->pos.x(), m->pos.y()), 2.0f, 2.0f);
 
 							if (fI == tracker->drawMarkerFrameIndex)
@@ -199,20 +205,20 @@ void CameraView::paintEvent(QPaintEvent* Event)
 			}
 		}
 		
-		qp.setPen(QPen(QColor::fromRgb(255, 255, 255)));
+		qp.setPen(QPen(QColor::fromRgb(255, 0, 255)));
 		qp.setBrush(Qt::BrushStyle::NoBrush);
 
-		/*
+		//*
 		// NOTE: Draw epipolar line in paired cam view.
 		for (int t = 0; t < take->trackers.count(); ++t)
 		{
 			TakeTracker* tracker = take->trackers[t];
 
-			float tX = 10;
-			float tY = oY;
+			//float tX = (VID_W + 10) * (1 - t);
+			float tX = 0;
 
 			if (t == 0)
-				tX += 1010;
+				tX = (VID_W + 10);
 
 			for (int i = 0; i < tracker->vidFrameData[tracker->drawMarkerFrameIndex].epiLines.count(); ++i)
 			{
@@ -222,9 +228,9 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				float b = e.b;
 				float c = e.c;
 				float y1 = -(a * 0 + c) / b;
-				float y2 = -(a * 1000 + c) / b;
+				float y2 = -(a * 1024 + c) / b;
 
-				qp.drawLine(QPointF(tX, y1 + oY), QPointF(tX + 1000, y2 + oY));
+				qp.drawLine(_GetVPointF(tX, y1), _GetVPointF(tX + 1024, y2));
 			}
 
 			for (int m = 0; m < take->markers[timelineFrame].size(); ++m)
@@ -238,14 +244,18 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				wp.at<double>(3) = 1.0;
 
 				cv::Mat imgPt = tracker->decoder->projMat * wp;
-				float tX = 10 + 1010 * t;
-				float tY = oY;
 				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
-				qp.drawEllipse(QPointF(tX + x, tY + y), 7.0f, 7.0f);
+
+				//cv::distortpoin
+
+				//cv::projectPoints(
+
+				float tX = (VID_W + 10) * t;
+				qp.drawEllipse(_GetVPointF(tX + x, y), 7.0f, 7.0f);
 			}
 		}
-		*/
+		//*/
 
 		qp.setRenderHint(QPainter::Antialiasing, false);
 	}
@@ -260,9 +270,41 @@ void CameraView::mousePressEvent(QMouseEvent* Event)
 	_mouseMovedPos = _mouseDownPos;
 
 	if (Event->button() == Qt::MouseButton::LeftButton)
+	{
 		_mouseLeft = true;
+		_editMaskMode = 0;
+
+		QVector2D trackerSpace;
+		LiveTracker* tracker = _GetTracker(Event->localPos().x(), Event->localPos().y(), &trackerSpace);
+
+		if (tracker)
+		{
+			_mouseDownTrackerId = tracker->id;
+			int mX = trackerSpace.x() * 128;
+			int mY = trackerSpace.y() * 88;
+
+			if (tracker->interactMode == 1)
+			{
+				if (tracker->getMask(mX, mY))
+				{
+					_editMaskMode = 1;
+					tracker->changeMask(mX, mY, false);
+				}
+				else
+				{
+					_editMaskMode = 2;
+					tracker->changeMask(mX, mY, true);
+				}
+
+				main->changeMask(tracker);
+			}
+		}
+
+	}
 	else if (Event->button() == Qt::MouseButton::RightButton)
+	{
 		_mouseRight = true;
+	}
 }
 
 void CameraView::mouseReleaseEvent(QMouseEvent* Event)
@@ -277,14 +319,6 @@ void CameraView::mouseReleaseEvent(QMouseEvent* Event)
 
 		QVector2D trackerSpace;
 		LiveTracker* tracker = _GetTracker(Event->localPos().x(), Event->localPos().y(), &trackerSpace);
-
-		if (tracker)
-		{
-			int mX = trackerSpace.x() * 128;
-			int mY = trackerSpace.y() * 88;
-
-			tracker->maskData[mY * 128 + mX] = { 255, 0, 0, 128 };
-		}
 		
 		if (!moved)
 		{
@@ -325,11 +359,15 @@ void CameraView::mouseReleaseEvent(QMouseEvent* Event)
 				contextMenu.addSeparator();
 				QAction* interactNone = contextMenu.addAction("None");
 				interactNone->setCheckable(true);
-				interactNone->setChecked(true);
+				interactNone->setChecked(tracker->interactMode == 0);
 
 				QAction* interactMasks = contextMenu.addAction("Edit Mask");
+				interactMasks->setCheckable(true);
+				interactMasks->setChecked(tracker->interactMode == 1);
 				
 				QAction* interactMarkers = contextMenu.addAction("Select Markers");
+				interactMarkers->setCheckable(true);
+				interactMarkers->setChecked(tracker->interactMode == 2);
 
 				QAction* result = contextMenu.exec(Event->globalPos());
 
@@ -340,6 +378,18 @@ void CameraView::mouseReleaseEvent(QMouseEvent* Event)
 				else if (result == markers)
 				{
 					main->viewFeed(tracker->id, false);
+				}
+				else if (result == interactNone)
+				{
+					tracker->interactMode = 0;
+				}
+				else if (result == interactMasks)
+				{
+					tracker->interactMode = 1;
+				}
+				else if (result == interactMarkers)
+				{
+					tracker->interactMode = 2;
 				}
 			}
 		}
@@ -353,7 +403,24 @@ void CameraView::mouseMoveEvent(QMouseEvent* Event)
 
 	if (_mouseLeft)
 	{
-		
+		QVector2D trackerSpace;
+		LiveTracker* tracker = _GetTracker(Event->localPos().x(), Event->localPos().y(), &trackerSpace);
+
+		if (tracker)
+		{
+			if (tracker->id == _mouseDownTrackerId)
+			{
+				int mX = trackerSpace.x() * 128;
+				int mY = trackerSpace.y() * 88;
+
+				if (tracker->interactMode == 1 && _editMaskMode == 1)
+					tracker->changeMask(mX, mY, false);
+				else if (tracker->interactMode == 1 && _editMaskMode == 2)
+					tracker->changeMask(mX, mY, true);
+
+				main->changeMask(tracker);
+			}
+		}
 	}
 	else if (_mouseRight)
 	{
@@ -395,7 +462,7 @@ void CameraView::wheelEvent(QWheelEvent* Event)
 LiveTracker* CameraView::_GetTracker(int X, int Y, QVector2D* TrackerSpace)
 {
 	int trackerCount = 0;
-	for (std::map<int, LiveTracker*>::iterator it = main->liveTrackers.begin(); it != main->liveTrackers.end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
 		float tX = trackerCount * (VID_W + 10);
@@ -423,7 +490,7 @@ LiveTracker* CameraView::_GetTracker(int X, int Y, QVector2D* TrackerSpace)
 void CameraView::_DeselectTrackers()
 {
 	int trackerCount = 0;
-	for (std::map<int, LiveTracker*>::iterator it = main->liveTrackers.begin(); it != main->liveTrackers.end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
 		tracker->selected = false;

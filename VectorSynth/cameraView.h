@@ -36,6 +36,7 @@ public:
 	// Take view.
 	Take*		take;
 	int			timelineFrame;
+	std::map<int, LiveTracker*>* trackers;
 	
 	// Global view controls.
 	QVector2D	viewTranslate;
@@ -61,6 +62,8 @@ private:
 	bool		_mouseRight;
 	QPointF		_mouseDownPos;
 	QPointF		_mouseMovedPos;
+	int			_mouseDownTrackerId;
+	int			_editMaskMode;
 
 	QTransform	_vt;
 

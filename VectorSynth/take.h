@@ -4,20 +4,23 @@
 #include <QVector3D>
 #include <QDebug>
 #include "decoder.h"
+#include "liveTracker.h"
 
 class SceneView;
 
 class Marker3D
 {
 public:
-	QVector2D cam1pos;
-	QVector2D cam2pos;
+
+	NewMarker cam1marker;
+	NewMarker cam2marker;
 	QVector3D pos;
 };
 
 class EpipolarLine
 {
 public:
+
 	int timelineFrame;
 	float a;
 	float b;
@@ -31,6 +34,7 @@ public:
 class VidFrameData
 {
 public:
+
 	int type;
 	int time;
 	int index;
@@ -44,6 +48,7 @@ public:
 class VidKeyFrameData
 {
 public:
+
 	int time;
 	int frameDataIndex;
 };
@@ -51,11 +56,14 @@ public:
 class TakeTracker
 {
 public:
-	static TakeTracker* Create(QString TakeId, QString TakeName, QString FilePath);
 
+	static TakeTracker* Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker);
+
+	LiveTracker*		liveTracker;
 	QString				takeName;
 	QString				name;
-	int					takeId;
+	uint32_t			serial;
+	int					id;
 	QList<VidFrameData> vidFrameData;
 	int					vidPlaybackFrame;
 	Decoder*			decoder;
@@ -65,6 +73,7 @@ public:
 	int					iso;
 	float				threshold;
 	float				sensitivity;
+	uint8_t				mask[128 * 88];
 	
 	int					frameCount;
 	int					frameOffset;
@@ -88,7 +97,11 @@ public:
 class Take
 {
 public:
-	QList<TakeTracker*> trackers;
+
+	// TODO: Combine TakeTracker and LiveTracker.
+	QList<TakeTracker*>				trackers;
+	std::map<int, LiveTracker*>		liveTrackers;
+	
 	int timeStart;
 	int timeEnd;
 	int timeFrames;
@@ -97,7 +110,6 @@ public:
 	QVector3D wY;
 	QVector3D wZ;
 	QVector3D wT;
-
 	float wScale;
 
 	std::vector<std::vector<Marker3D>> markers;
@@ -111,14 +123,15 @@ public:
 
 	//void SetTime();
 	void SetFrame(int TimelineFrame, bool DrawMarkers);
-	void GenerateMask();
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void Build3DMarkers(int StartFrame, int EndFrame);
 	void BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene);
+	void SaveSSBAFile();
 
 private:
+
 	void _ReconfigureTimeline();
 	void _LoadTracker(QString TrackerFileName);
 	void _AdjustRuntime();
-	Marker3D _triangulate(QVector2D P1, QVector2D P2);
+	Marker3D _triangulate(NewMarker M1, NewMarker M2);
 };

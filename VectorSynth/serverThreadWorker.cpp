@@ -82,6 +82,16 @@ void ServerThreadWorker::OnNewMarkersFrame(TrackerConnection* Tracker)
 	emit OnTrackerMarkersFrame(Tracker->id);
 }
 
+void ServerThreadWorker::OnMaskChange(int ClientId, QByteArray Data)
+{
+	TrackerConnection* tracker = _GetTracker(ClientId);
+
+	if (tracker)
+	{
+		memcpy(tracker->maskData, Data.data(), 128 * 88);
+	}
+}
+
 void ServerThreadWorker::OnSendData(int ClientId, QByteArray Data)
 {
 	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
@@ -177,8 +187,6 @@ void ServerThreadWorker::InternalRecordingStart()
 
 void ServerThreadWorker::OnStartRecording()
 {
-	qDebug() << "Button";
-
 	if (_recording)
 	{
 		qDebug() << "Stop Recording";
@@ -199,11 +207,10 @@ void ServerThreadWorker::OnStartRecording()
 			it->second->StartRecording();
 		}
 
-		QTimer::singleShot(500, this, SLOT(InternalRecordingStart()));
+		QTimer::singleShot(2000, this, SLOT(InternalRecordingStart()));
 	}
 
 	_recording = !_recording;
-	qDebug() << "Done";
 }
 
 void ServerThreadWorker::OnStartCalibrating(int TrackerId)

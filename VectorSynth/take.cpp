@@ -7,11 +7,11 @@
 #include <QElapsedTimer>
 #include "sceneView.h"
 
-TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
+TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker)
 {
-	QFile file(Path);
+	QFile file(FilePath);
 
-	qDebug() << "Tracker: Load" << TakeName << TakeId << Path;
+	qDebug() << "Tracker: Load" << Id << TakeName << Serial << FilePath;
 
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
 	{
@@ -24,8 +24,10 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 	QJsonObject trackerObj = QJsonDocument::fromJson(fileData).object();
 	
 	TakeTracker* tracker = new TakeTracker();
-	tracker->takeId = TakeId.toInt();
+	tracker->id = Id;
 	tracker->takeName = TakeName;
+	tracker->serial = Serial;
+	tracker->liveTracker = LiveTracker;
 	tracker->name = trackerObj["name"].toString();
 	tracker->exposure = trackerObj["exposure"].toInt();
 	tracker->fps = trackerObj["fps"].toInt();
@@ -34,6 +36,11 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 	tracker->sensitivity = trackerObj["sensitivity"].toDouble();
 	tracker->frameOffset = trackerObj["offset"].toInt();
 	tracker->frameCount = 0;
+
+	LiveTracker->loaded = true;
+	LiveTracker->id = tracker->id;
+	LiveTracker->name = tracker->name;
+	LiveTracker->serial = tracker->serial;
 	
 	QJsonArray jsonIntrinMat = trackerObj["intrinsic"].toObject()["matrix"].toArray();
 	QJsonArray jsonIntrinDist = trackerObj["intrinsic"].toObject()["distortion"].toArray();
@@ -90,9 +97,20 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 	tracker->decoder->CalculateOptMat();
 
 	tracker->decoder->projMat = tracker->decoder->optCamMat * tracker->decoder->unitProjMat;
-	
+
 	char fileName[256];
-	QString infoFilePath = "project/" + TakeName + "/" + TakeId + ".trakvid";
+	QString maskFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".mask";
+	FILE* maskFile = fopen(maskFilePath.toLatin1(), "rb");
+
+	if (maskFile)
+	{
+		fread(tracker->mask, sizeof(mask), 1, maskFile);
+		LiveTracker->setMask(tracker->mask);
+		memcpy(tracker->decoder->frameMaskData, tracker->mask, sizeof(mask));
+		fclose(maskFile);
+	}
+
+	QString infoFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".trakvid";
 	FILE* vidFile = fopen(infoFilePath.toLatin1(), "rb");
 
 	fseek(vidFile, 0, SEEK_END);
@@ -181,7 +199,7 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 
 	tracker->vidPlaybackFrame = 0;
 
-	QFile m2dFile("project/" + TakeName + "/" + TakeId + ".m2d");
+	QFile m2dFile("project/" + TakeName + "/" + QString::number(Serial) + ".m2d");
 
 	if (m2dFile.open(QIODevice::ReadOnly))
 	{
@@ -198,6 +216,21 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 				stream >> pos;
 				tracker->vidFrameData[i].markers.push_back(pos);
 			}
+
+			int newMarkerCount = 0;
+			stream >> newMarkerCount;
+
+			for (int m = 0; m < newMarkerCount; ++m)
+			{
+				QVector2D pos;
+				QVector2D distPos;
+				QVector4D bounds;
+				stream >> bounds;
+				stream >> pos;
+				stream >> distPos;
+				NewMarker marker = { pos, bounds, distPos };
+				tracker->vidFrameData[i].newMarkers.push_back(marker);
+			}
 		}
 		
 		m2dFile.close();
@@ -208,15 +241,15 @@ TakeTracker* TakeTracker::Create(QString TakeName, QString TakeId, QString Path)
 	}
 
 
-	qDebug() << "Tracker: Loaded" << TakeId;
+	qDebug() << "Tracker: Loaded" << Serial;
 
-	/*
+	//*
 	for (int i = 0; i < tracker->vidFrameData.count(); ++i)
 	{
 		VidFrameData* vfdp = &tracker->vidFrameData[i];
 		qDebug() << "Post - Index:" << i << "Frame:" << vfdp->index << "Type:" << vfdp->type << "Time:" << vfdp->time;
 	}
-	*/
+	//*/
 	
 	return tracker;
 }
@@ -315,7 +348,7 @@ void TakeTracker::AdvanceFrame(int FrameCount)
 
 void TakeTracker::Save()
 {
-	qDebug() << "Tracker: Save" << takeId << takeName << name;
+	qDebug() << "Tracker: Save" << id << takeName << name;
 
 	QJsonObject jsonObj;
 	jsonObj["name"] = name;
@@ -387,7 +420,7 @@ void TakeTracker::Save()
 	QJsonDocument jsonDoc(jsonObj);
 	QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
 
-	QFile file("project/" + takeName + "/" + QString::number(takeId) + ".tracker");
+	QFile file("project/" + takeName + "/" + QString::number(serial) + ".tracker");
 
 	if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
 	{
@@ -398,7 +431,7 @@ void TakeTracker::Save()
 	file.write(jsonBytes);
 	file.close();
 
-	QFile m2dFile("project/" + takeName + "/" + QString::number(takeId) + ".m2d");
+	QFile m2dFile("project/" + takeName + "/" + QString::number(serial) + ".m2d");
 
 	if (!m2dFile.open(QIODevice::WriteOnly))
 	{
@@ -416,8 +449,15 @@ void TakeTracker::Save()
 		{
 			m2dStream << vidFrameData[i].markers[m];
 		}
+
+		m2dStream << vidFrameData[i].newMarkers.count();
+
+		for (int m = 0; m < vidFrameData[i].newMarkers.count(); ++m)
+		{
+			m2dStream << vidFrameData[i].newMarkers[m].bounds << vidFrameData[i].newMarkers[m].pos << vidFrameData[i].newMarkers[m].distPos;
+		}
 	}
-	
+
 	m2dFile.close();
 }
 
@@ -520,13 +560,13 @@ void TakeTracker::BuildEpilines(int StartFrame, int EndFrame)
 	}
 	
 	// Camera pair epiline generation.
-	if (takeId != 1 && takeId != 2)
+	if (id != 1 && id != 2)
 	{
 		qDebug() << "Fatal epipolar generation";
 		return;
 	}
 
-	cv::computeCorrespondEpilines(points, takeId, decoder->fundamentalMat, elines);
+	cv::computeCorrespondEpilines(points, id, decoder->fundamentalMat, elines);
 	
 	int currentE = 0;
 	for (int i = localStartFrame; i <= localEndFrame; ++i)
@@ -667,7 +707,9 @@ void Take::LoadTake(QString Name)
 
 		QString filePath = "project/" + Name + "/" + fileList[i];
 		
-		TakeTracker* tracker = TakeTracker::Create(Name, fileList[i].split(".", QString::SkipEmptyParts).at(0), filePath);
+		LiveTracker* liveTracker = new LiveTracker();
+		liveTrackers[i + 1] = liveTracker;
+		TakeTracker* tracker = TakeTracker::Create(i + 1, Name, fileList[i].split(".", QString::SkipEmptyParts).at(0).toUInt(), filePath, liveTracker);
 
 		if (tracker)
 			trackers.push_back(tracker);
@@ -761,6 +803,8 @@ void Take::_AdjustRuntime()
 	{
 		TakeTracker* tracker = trackers[i];
 
+		qDebug() << "Local Timeline" << tracker->frameCount << tracker->frameOffset;
+
 		if (tracker->frameCount + tracker->frameOffset > timeEnd)
 			timeEnd = tracker->frameCount + tracker->frameOffset;
 
@@ -801,20 +845,13 @@ void Take::SetFrame(int TimelineFrame, bool DrawMarkers)
 			{	
 				tracker->DecodeFrame(frameIndex, keyFrameIndex);
 				tracker->decoder->ProcessFrame();
+				memcpy(tracker->liveTracker->frameData, tracker->decoder->GetFrameMatData(), VID_W * VID_H * 3);
 			}
 		}
 		else
 		{
 			tracker->decoder->ShowBlankFrame();
 		}
-	}
-}
-
-void Take::GenerateMask()
-{
-	for (int i = 0; i < trackers.count(); ++i)
-	{
-		trackers[i]->decoder->GenerateMask();
 	}
 }
 
@@ -830,13 +867,12 @@ void Take::Build2DMarkers(int StartFrame, int EndFrame)
 	qDebug() << "Done Building Markers";
 }
 
-Marker3D Take::_triangulate(QVector2D P1, QVector2D P2)
+Marker3D Take::_triangulate(NewMarker M1, NewMarker M2)
 {
 	std::vector<cv::Point2f> trackerPoints[2];
-	trackerPoints[0].push_back(cv::Point2f(P1.x(), P1.y()));
-	trackerPoints[1].push_back(cv::Point2f(P2.x(), P2.y()));
+	trackerPoints[0].push_back(cv::Point2f(M1.pos.x(), M1.pos.y()));
+	trackerPoints[1].push_back(cv::Point2f(M2.pos.x(), M2.pos.y()));
 
-	// Match epilines to markers
 	cv::Mat Q;
 	triangulatePoints(trackers[0]->decoder->projMat, trackers[1]->decoder->projMat, trackerPoints[0], trackerPoints[1], Q);
 
@@ -847,8 +883,8 @@ Marker3D Take::_triangulate(QVector2D P1, QVector2D P2)
 	float z = Q.at<float>(2, 0) / w;
 
 	Marker3D m = {};
-	m.cam1pos = P1;
-	m.cam2pos = P2;
+	m.cam1marker = M1;
+	m.cam2marker = M2;
 	m.pos = QVector3D(x, y, z);
 
 	return m;
@@ -893,7 +929,6 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 		trackers[i]->BuildEpilines(StartFrame, EndFrame);
 	}
 
-#if 1
 	// Build markers from the camera pair.
 	for (int i = StartFrame; i <= EndFrame; ++i)
 	{
@@ -928,54 +963,12 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 					if (closestIndex != -1)
 					{
 						qDebug() << "closest" << closestD;
-						markers[i].push_back(_triangulate(a->newMarkers[e].pos, b->newMarkers[closestIndex].pos));
+						markers[i].push_back(_triangulate(a->newMarkers[e], b->newMarkers[closestIndex]));
 					}
 				}
 			}
 		}
 	}
-#else
-	// Build markers from the camera pair.
-	for (int i = StartFrame; i <= EndFrame; ++i)
-	{
-		VidFrameData* a = trackers[0]->GetLocalFrame(i);
-		VidFrameData* b = trackers[1]->GetLocalFrame(i);
-
-		if (a && b)
-		{
-			if (a->markers.count() > 0 && b->markers.count() > 0)
-			{
-				// Go through all epilines in cam A and look for points in cam B.
-				for (int e = 0; e < a->epiLines.count(); ++e)
-				{
-					int closestIndex = -1;
-					float closestD = 10000.0f;
-
-					EpipolarLine line = a->epiLines[e];
-					float y1 = -(line.a * 0 + line.c) / line.b;
-					float y2 = -(line.a * 1000 + line.c) / line.b;
-
-					for (int p = 0; p < b->markers.count(); ++p)
-					{
-						float dist = SqDistPointSegment(QVector2D(0, y1), QVector2D(1000, y2), b->markers[p]);
-
-						if (dist <= 10.0f && dist < closestD)
-						{
-							closestD = dist;
-							closestIndex = p;
-						}
-					}
-
-					if (closestIndex != -1)
-					{
-						qDebug() << "closest" << closestD;
-						markers[i].push_back(_triangulate(a->markers[e], b->markers[closestIndex]));
-					}
-				}
-			}
-		}
-	}
-#endif
 
 	for (int i = 0; i < markers.size(); ++i)
 	{
@@ -983,6 +976,88 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 	}
 
 	qDebug() << "Done Building Markers";
+
+	SaveSSBAFile();
+}
+
+void Take::SaveSSBAFile()
+{
+	QFile file("ssba\\test.txt");
+	if (file.open(QIODevice::ReadWrite | QIODevice::Text)) 
+	{
+		QTextStream stream(&file);
+
+		int single3dMarkerCount = 0;
+		for (int i = 0; i < markers.size(); ++i)
+		{
+			if (markers[i].size() == 1)
+				++single3dMarkerCount;
+		}
+		
+		stream << single3dMarkerCount << " 2 " << (single3dMarkerCount * 2) << endl;
+
+		for (int t = 0; t < trackers.size(); ++t)
+		{
+			/*
+			stream << trackers[t]->decoder->_calibCameraMatrix.at<double>(0, 0) << " "; // fx
+			stream << trackers[t]->decoder->_calibCameraMatrix.at<double>(0, 1) << " "; // skew
+			stream << trackers[t]->decoder->_calibCameraMatrix.at<double>(0, 2) << " "; // cx
+			stream << trackers[t]->decoder->_calibCameraMatrix.at<double>(1, 1) << " "; // fy
+			stream << trackers[t]->decoder->_calibCameraMatrix.at<double>(1, 2) << " "; // cy
+			*/
+
+			stream << trackers[t]->decoder->optCamMat.at<double>(0, 0) << " "; // fx
+			stream << trackers[t]->decoder->optCamMat.at<double>(0, 1) << " "; // skew
+			stream << trackers[t]->decoder->optCamMat.at<double>(0, 2) << " "; // cx
+			stream << trackers[t]->decoder->optCamMat.at<double>(1, 1) << " "; // fy
+			stream << trackers[t]->decoder->optCamMat.at<double>(1, 2) << " "; // cy
+
+			stream << trackers[t]->decoder->_calibDistCoeffs.at<double>(0) << " "; // k1
+			stream << trackers[t]->decoder->_calibDistCoeffs.at<double>(1) << " "; // k2
+			stream << trackers[t]->decoder->_calibDistCoeffs.at<double>(2) << " "; // p1
+			stream << trackers[t]->decoder->_calibDistCoeffs.at<double>(3) << endl; // p2
+		}
+
+		// NOTE: Assume we only have a single marker in each frame
+		for (int i = 0; i < markers.size(); ++i)
+		{
+			if (markers[i].size() == 1)
+			{
+				stream << i << " " << markers[i][0].pos.x() << " " << markers[i][0].pos.y() << " " << markers[i][0].pos.z() << endl;
+			}
+		}
+
+		for (int t = 0; t < trackers.size(); ++t)
+		{
+			stream << t;
+			
+			for (int iX = 0; iX < 3; ++iX)						
+			{				
+				for (int iY = 0; iY < 4; ++iY)
+				{
+					stream << " " << trackers[t]->decoder->unitProjMat.at<double>(iX, iY);
+				}
+			}
+
+			stream << endl;
+		}
+
+		for (int i = 0; i < markers.size(); ++i)
+		{
+			if (markers[i].size() == 1)
+			{
+				for (int t = 0; t < trackers.size(); ++t)
+				{
+					if (t == 0)
+						stream << t << " " << i << " " << markers[i][0].cam1marker.distPos.x() << " " << markers[i][0].cam1marker.distPos.y() << " 1" << endl;
+					else
+						stream << t << " " << i << " " << markers[i][0].cam2marker.distPos.x() << " " << markers[i][0].cam2marker.distPos.y() << " 1" << endl;
+				}
+			}
+		}
+
+		file.close();
+	}
 }
 
 void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
@@ -990,10 +1065,13 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	qDebug() << "Start Building Fundamental";
 
 	std::vector<cv::Point2f> trackerPoints[2];
-	//epiLines.clear();
+	std::vector<cv::Point2f> distTrackerPoints[2];
 	
 	int tfIndex[2] = {};
 
+	//---------------------------------------------------------------------------------------------------
+	// Find corresponding points in frames.
+	//---------------------------------------------------------------------------------------------------
 	while (true)
 	{
 		VidFrameData* t0 = &trackers[0]->vidFrameData[tfIndex[0]];
@@ -1002,10 +1080,11 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 		int tfT0 = trackers[0]->frameOffset + t0->index;
 		int tfT1 = trackers[1]->frameOffset + t1->index;
 
-		if (t0->type == 2 || t0->type == 2)
+		// Skip dummy frames (dropped frame).
+		if (t0->type == 3 || t0->type == 3)
 		{
-			if (t0->type == 2) tfIndex[0]++;
-			if (t1->type == 2) tfIndex[1]++;
+			if (t0->type == 3) tfIndex[0]++;
+			if (t1->type == 3) tfIndex[1]++;
 			continue;
 		}
 		
@@ -1025,12 +1104,15 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 			}
 			else if (tfT0 >= StartFrame)
 			{
-				if (t0->markers.count() == 1 && t1->markers.count() == 1)
+				if (t0->newMarkers.count() == 1 && t1->newMarkers.count() == 1)
 				{
 					qDebug() << "Add markers - Frame:" << tfT0;
 
-					trackerPoints[0].push_back(cv::Point2f(t0->markers[0].x(), t0->markers[0].y()));
-					trackerPoints[1].push_back(cv::Point2f(t1->markers[0].x(), t1->markers[0].y()));
+					trackerPoints[0].push_back(cv::Point2f(t0->newMarkers[0].pos.x(), t0->newMarkers[0].pos.y()));
+					trackerPoints[1].push_back(cv::Point2f(t1->newMarkers[0].pos.x(), t1->newMarkers[0].pos.y()));
+
+					distTrackerPoints[0].push_back(cv::Point2f(t0->newMarkers[0].distPos.x(), t0->newMarkers[0].distPos.y()));
+					distTrackerPoints[1].push_back(cv::Point2f(t1->newMarkers[0].distPos.x(), t1->newMarkers[0].distPos.y()));
 					
 					//EpipolarLine line = {};
 					//line.timelineFrame = tfT0;
@@ -1049,6 +1131,42 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 		}
 	}
 
+	//---------------------------------------------------------------------------------------------------
+	// Undistort and clip pairwise points.
+	//---------------------------------------------------------------------------------------------------
+	// If the points are clipped then remove the corresponding pair.
+	//trackerPoints[0].erase(trackerPoints[0].begin() + 5);
+
+	/*
+	for (int t = 0; t < 2; ++t)
+	{
+		int markerCount = trackerPoints[t].size();
+
+		cv::Mat_<cv::Point2f> matPoint(1, markerCount);
+		for (int i = 0; i < markerCount; ++i)
+			matPoint(i) = trackerPoints[t][i];
+
+		cv::Mat matOutPoints;
+		cv::undistortPoints(matPoint, matOutPoints, trackers[t]->decoder->_calibCameraMatrix, trackers[t]->decoder->_calibDistCoeffs, cv::noArray(), trackers[t]->decoder->optCamMat);
+
+		trackerPoints[t].clear();
+
+		// Clip markers.
+		for (int i = 0; i < matOutPoints.size().width; ++i)
+		{
+			cv::Point2f p = matOutPoints.at<cv::Point2f>(i);
+
+			//if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
+			{
+				trackerPoints[t].push_back(p);
+			}
+		}
+	}
+	*/
+
+	//---------------------------------------------------------------------------------------------------
+	// Build fundamental mat.
+	//---------------------------------------------------------------------------------------------------
 	cv::Mat fMats;
 	try
 	{
@@ -1064,6 +1182,9 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 
 	qDebug() << "Done Building Fundamental" << fMats.size().width << "x" << fMats.size().height;
 
+	//---------------------------------------------------------------------------------------------------
+	// Build epipolar lines.
+	//---------------------------------------------------------------------------------------------------
 	std::vector<cv::Point3f> elines;
 	std::vector<cv::Point3f> elines2;
 
@@ -1073,19 +1194,9 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	cv::computeCorrespondEpilines(trackerPoints[0], 1, fMats, elines);
 	cv::computeCorrespondEpilines(trackerPoints[1], 2, fMats, elines2);
 	
-	for (int i = 0; i < elines.size(); ++i)
-	{
-		/*
-		epiLines[i].a = elines[i].x;
-		epiLines[i].b = elines[i].y;
-		epiLines[i].c = elines[i].z;
-
-		epiLines[i].a2 = elines2[i].x;
-		epiLines[i].b2 = elines2[i].y;
-		epiLines[i].c2 = elines2[i].z;
-		*/
-	}
-
+	//---------------------------------------------------------------------------------------------------
+	// Recover camera poses.
+	//---------------------------------------------------------------------------------------------------
 	cv::Mat essentialMat(3, 3, CV_64F);
 	// NOTE: Second camera K first.
 	essentialMat = trackers[1]->decoder->optCamMat.t() * fMats * trackers[0]->decoder->optCamMat;
@@ -1125,10 +1236,9 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	cv::Mat r;
 	cv::Mat t;
 	// TODO: Different FL and CP for each camera.
-	cv::recoverPose(essentialMat, trackerPoints[0], trackerPoints[1], r, t, 2.2612, cv::Point2d(500, 350));
-	cv::Mat trueT = -(r).t() * t;
+	cv::recoverPose(essentialMat, trackerPoints[0], trackerPoints[1], r, t, 2.2612, cv::Point2d(512, 352));
 
-	// Triangulate Test
+	cv::Mat trueT = -(r).t() * t;
 	cv::Mat P0 = cv::Mat::eye(3, 4, r.type());
 	cv::Mat P1(3, 4, r.type());
 	P1(cv::Range::all(), cv::Range(0, 3)) = r * 1.0;
@@ -1142,20 +1252,6 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	
 	trackers[0]->decoder->projMat = P0;
 	trackers[1]->decoder->projMat = P1;
-
-	cv::Mat Q;
-	triangulatePoints(P0, P1, trackerPoints[0], trackerPoints[1], Q);
-	
-	for (int i = 0; i < Q.size().width; ++i)
-	{
-		float w = Q.at<float>(3, i);
-		float x = Q.at<float>(0, i) / w;
-		float y = Q.at<float>(1, i) / w;
-		float z = Q.at<float>(2, i) / w;
-
-		Scene->pushSamplePoint(QVector3D(x, y, z));
-		//markers[i].pos = QVector3D(x, y, z);
-	}
 
 	QMatrix4x4 worldMat;
 	worldMat(0, 0) = r.at<double>(0, 0);
@@ -1180,6 +1276,23 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 
 	trackers[0]->decoder->worldMat.setToIdentity();
 	trackers[1]->decoder->worldMat = worldMat;
+
+	//---------------------------------------------------------------------------------------------------
+	// Triangulate points.
+	//---------------------------------------------------------------------------------------------------
+	cv::Mat Q;
+	triangulatePoints(P0, P1, trackerPoints[0], trackerPoints[1], Q);
+	
+	for (int i = 0; i < Q.size().width; ++i)
+	{
+		float w = Q.at<float>(3, i);
+		float x = Q.at<float>(0, i) / w;
+		float y = Q.at<float>(1, i) / w;
+		float z = Q.at<float>(2, i) / w;
+
+		Scene->pushSamplePoint(QVector3D(x, y, z));
+		//markers[i].pos = QVector3D(x, y, z);
+	}
 
 	/*
 	cv::Mat dpmC;

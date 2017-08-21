@@ -37,11 +37,21 @@ public:
 	bool		selected;
 	bool		active;
 	bool		connected;
+	bool		loaded;
+	bool		decodeVideo;
+
+	int			interactMode;
 
 	uint8_t		frameData[VID_W * VID_H * 3];
-	MaskElement	maskData[128 * 88];
+	MaskElement	maskVisualData[128 * 88];
+	uint8_t		maskData[128 * 88];
 
 	void updateStats();
+
+	void changeMask(int X, int Y, bool Value);
+	bool getMask(int X, int Y);
+	void generateMask();
+	void setMask(uint8_t* Data);
 
 private:
 

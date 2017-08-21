@@ -310,6 +310,7 @@ public:
         dockProps->setFloating(false);
         dockWidgetContents_2 = new QWidget();
         dockWidgetContents_2->setObjectName(QStringLiteral("dockWidgetContents_2"));
+        dockWidgetContents_2->setEnabled(true);
         dockWidgetContents_2->setStyleSheet(QStringLiteral(""));
         verticalLayout = new QVBoxLayout(dockWidgetContents_2);
         verticalLayout->setSpacing(6);
@@ -827,7 +828,7 @@ public:
         label_16->setText(QApplication::translate("MainWindow", "Recording", Q_NULLPTR));
         btnSyncTime->setText(QApplication::translate("MainWindow", "Start Time Sync", Q_NULLPTR));
         btnStartRecording->setText(QApplication::translate("MainWindow", "Start Recording", Q_NULLPTR));
-        label_13->setText(QApplication::translate("MainWindow", "Trackers", Q_NULLPTR));
+        label_13->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
         label_12->setText(QApplication::translate("MainWindow", "Name", Q_NULLPTR));
         txtId->setText(QApplication::translate("MainWindow", "Tracker Id", Q_NULLPTR));
         label_7->setText(QApplication::translate("MainWindow", "FPS", Q_NULLPTR));
@@ -871,7 +872,7 @@ public:
         btnBuild2D->setText(QApplication::translate("MainWindow", "Build 2D Markers", Q_NULLPTR));
         btnBuild3D->setText(QApplication::translate("MainWindow", "Build 3D Markers", Q_NULLPTR));
         btnIdentify3D->setText(QApplication::translate("MainWindow", "Identify Markers", Q_NULLPTR));
-        label_14->setText(QApplication::translate("MainWindow", "Trackers", Q_NULLPTR));
+        label_14->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
         pushButton_5->setText(QApplication::translate("MainWindow", "All", Q_NULLPTR));
         pushButton_6->setText(QApplication::translate("MainWindow", "Selected", Q_NULLPTR));
         label_15->setText(QApplication::translate("MainWindow", "ID", Q_NULLPTR));

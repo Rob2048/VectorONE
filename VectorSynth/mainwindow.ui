@@ -203,6 +203,9 @@ QTabBar::tab:selected
     <number>4</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_2">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
     <property name="styleSheet">
      <string notr="true"/>
     </property>
@@ -291,7 +294,7 @@ padding: 5px;</string>
 padding: 5px;</string>
        </property>
        <property name="text">
-        <string>Trackers</string>
+        <string>Tracker Properties</string>
        </property>
       </widget>
      </item>
@@ -918,7 +921,7 @@ padding: 5px;</string>
 padding: 5px;</string>
        </property>
        <property name="text">
-        <string>Trackers</string>
+        <string>Tracker Properties</string>
        </property>
       </widget>
      </item>

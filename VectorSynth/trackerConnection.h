@@ -13,7 +13,7 @@ class TrackerConnection : public QObject
 public:
 
 	uint32_t		id;
-	int				serial;
+	uint32_t		serial;
 	QString			name;
 	int				version;
 	bool			accepted;
@@ -26,6 +26,7 @@ public:
 	int				markerDataSize;
 	QElapsedTimer*	masterTimer;
 	FILE*			recordFile;
+	uint8_t			maskData[128 * 88];
 
 	TrackerConnection(int Id, QTcpSocket* Socket, QElapsedTimer* MasterTimer, QObject* Parent);
 	~TrackerConnection();

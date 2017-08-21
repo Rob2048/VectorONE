@@ -27,6 +27,7 @@ public slots:
 	void OnNewMarkersFrame(TrackerConnection* Tracker);
 	void OnInfoUpdate(TrackerConnection* Tracker);
 	void OnSendData(int ClientId, QByteArray Data);
+	void OnMaskChange(int ClientId, QByteArray Data);
 	void OnCamSensitivityChange(int Value);
 	void OnCamFrameSkipChanged();
 	void OnCamThresholdChange(int Value);

@@ -78,7 +78,6 @@ Decoder::Decoder() :
 	c->height = VID_H;
 	c->framerate = { 80, 1 };	
 	//c->flags |= CODEC_FLAG_LOW_DELAY;
-	qDebug() << "Codec Delay" << c->flags;
 	if (avcodec_open2(c, codec, NULL) < 0) {
 		qDebug() << "Could not open codec";
 		exit(1);
@@ -104,11 +103,8 @@ Decoder::Decoder() :
 
 	_initOpenCV();
 
-	for (int i = 0; i < VID_W * VID_H; ++i)
-		_frameMaskData[i] = 1;
-
-	_frameMask = Mat(VID_H, VID_W, CV_8UC1);
-	_frameMask = cv::Scalar(0);
+	for (int i = 0; i < sizeof(frameMaskData); ++i)
+		frameMaskData[i] = 1;
 
 	colMat = Mat(VID_H, VID_W, CV_8UC3);
 }
@@ -139,8 +135,6 @@ void Decoder::_initOpenCV()
 	blobDetectorParams.maxThreshold = 110;
 	blobDetectorParams.thresholdStep = 100;
 
-	qDebug() << "Thresh" << blobDetectorParams.thresholdStep;
-
 	blobDetector = cv::SimpleBlobDetector::create(blobDetectorParams);
 }
 
@@ -162,7 +156,7 @@ void Decoder::CalculateOptMat()
 	calibrationMatrixValues(_calibCameraMatrix, cv::Size(VID_W, VID_H), 3.092, 2.748, fovX, fovY, focalLength, principalPoint, aspectRatio);
 	//calibrationMatrixValues(_calibCameraMatrix, cv::Size(VID_W, VID_H), 2.240, 1.680, fovX, fovY, focalLength, principalPoint, aspectRatio);
 
-	qDebug() << "Cam - Fov: " << fovX << "x" << fovY << " Fl:" << focalLength << " Aspect:" << aspectRatio << " PP:" << principalPoint.x << "," << principalPoint.y;
+	//qDebug() << "Cam - Fov: " << fovX << "x" << fovY << " Fl:" << focalLength << " Aspect:" << aspectRatio << " PP:" << principalPoint.x << "," << principalPoint.y;
 
 	QVector4D hwPos = worldMat * QVector4D(0, 0, 0, 1);
 
@@ -371,7 +365,7 @@ void Decoder::_CreateFrameGray()
 			else if (l > 1.0f) l = 1.0f;
 
 			int dataIndex = iY * VID_W + iX;
-			_postFrameData[dataIndex] = (uint8_t)(l * 255) * _frameMaskData[dataIndex];
+			_postFrameData[dataIndex] = (uint8_t)(l * 255) * frameMaskData[(iY / 8) * 128 + (iX / 8)];
 		}
 	}
 	
@@ -502,9 +496,9 @@ void Decoder::ProcessFrame()
 	}
 	*/
 
-	//_undistort();
-	//cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
-	cv::cvtColor(cvFrame, colMat, cv::COLOR_GRAY2RGB);
+	_undistort();
+	cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
+	//cv::cvtColor(cvFrame, colMat, cv::COLOR_GRAY2RGB);
 
 	/*
 	std::vector<Point3f> worldPoints;
@@ -663,10 +657,12 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 
 	for (int i = 0; i < blobCount; ++i)
 	{
+		if (blobs[i].maxX - blobs[i].minX < 2 || blobs[i].maxY - blobs[i].minY < 2)
+			continue;
+
 		NewMarker m = {};
 		m.pos = QVector2D((blobs[i].maxX - blobs[i].minX) * 0.5f + blobs[i].minX, (blobs[i].maxY - blobs[i].minY) * 0.5f + blobs[i].minY);
 		m.bounds = QVector4D(blobs[i].minX, blobs[i].minY, blobs[i].maxX, blobs[i].maxY);
-
 
 		m.pos = QVector2D(0, 0);
 		float totalWeight = 0.0f;
@@ -697,6 +693,7 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 			}
 		}
 
+		m.distPos = m.pos;
 		markers.push_back(m);
 	}
 
@@ -720,25 +717,29 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 
 	//*
 	// Undistort markers.
-	cv::Mat_<cv::Point2f> matPoint(1, markers.size());
-	for (int i = 0; i < markers.size(); ++i)
-		matPoint(i) = Point2f(markers[i].pos.x(), markers[i].pos.y());
-	
-	cv::Mat matOutPoints;
-	cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
-	
-	markers.clear();
-
-	// Clip markers.
-	for (int i = 0; i < matOutPoints.size().width; ++i)
+	if (markers.size() > 0)
 	{
-		Point2f p = matOutPoints.at<cv::Point2f>(i);
+		cv::Mat_<cv::Point2f> matPoint(1, markers.size());
+		for (int i = 0; i < markers.size(); ++i)
+			matPoint(i) = Point2f(markers[i].pos.x(), markers[i].pos.y());
 
-		if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
+		cv::Mat matOutPoints;
+		cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
+
+		//markers.clear();
+
+		// Clip markers.
+		for (int i = 0; i < matOutPoints.size().width; ++i)
 		{
-			NewMarker m = {};
-			m.pos = QVector2D(p.x, p.y);
-			markers.push_back(m);
+			Point2f p = matOutPoints.at<cv::Point2f>(i);
+
+			if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
+			{
+				markers[i].pos = QVector2D(p.x, p.y);
+				//NewMarker m = {};
+				//m.pos = QVector2D(p.x, p.y);
+				//markers.push_back(m);
+			}
 		}
 	}
 	//*/
@@ -850,47 +851,6 @@ void Decoder::_findCalibrationSheet()
 		{
 			circle(colMat, keypoints[k].pt, keypoints[k].size * 0.5f + 4.0f, Scalar(255, 0, 0), 1, 8);
 			drawMarker(colMat, keypoints[k].pt, Scalar(255, 0, 255), cv::MarkerTypes::MARKER_CROSS, 40, 1);
-		}
-	}
-}
-
-void Decoder::GenerateMask()
-{	
-	int kSize = 5;
-
-	for (int iY = 0; iY < VID_H; ++iY)
-	{
-		for (int iX = 0; iX < VID_W; ++iX)
-		{
-			int mask = 1;
-
-			int kXStart = iX - kSize;
-			int kXEnd = iX + kSize;
-			int kYStart = iY - kSize;
-			int kYEnd = iY + kSize;
-
-			if (kXStart < 0) kXStart = 0;
-			if (kXEnd > VID_W) kXEnd = VID_W;
-			if (kYStart < 0) kYStart = 0;
-			if (kYEnd > VID_H) kYEnd = VID_H;
-
-			for (int kY = kYStart; kY < kYEnd; ++kY)
-			{
-				for (int kX = kXStart; kX < kXEnd; ++kX)
-				{
-					if (_postFrameData[kY * VID_W + kX] > 0)
-					{
-						mask = 0;
-						break;
-					}
-				}
-
-				if (mask == 0)
-					break;
-			}
-
-			_frameMaskData[iY * VID_W + iX] = mask;
-			_frameMask.at<uint8_t>(iY, iX) = 255 * (1 - mask);
 		}
 	}
 }

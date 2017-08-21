@@ -38,6 +38,7 @@ class NewMarker
 public:
 	QVector2D pos;
 	QVector4D bounds;
+	QVector2D distPos;
 };
 
 class Decoder
@@ -74,6 +75,8 @@ public:
 	QMatrix4x4					worldMat;
 	cv::Mat						fundamentalMat;
 	QVector3D					worldPos;
+
+	uint8_t						frameMaskData[128 * 88];
 	
 	bool DoDecode(uint8_t* Data, int Len);
 	bool DoDecodeSingleFrame(uint8_t* Data, int Len, int* Consumed);
@@ -84,7 +87,6 @@ public:
 
 	uint8_t* GetFrameMatData() { return colMat.data; }
 
-	void GenerateMask();
 	void CalculateOptMat();
 	void ShowBlankFrame();
 
@@ -126,10 +128,7 @@ private:
 	int destHeight;
 	int lastFrame = 0;
 	int _parsedFrames = 0;
-	uint8_t _postFrameData[VID_W * VID_H];
-	uint8_t _frameMaskData[VID_W * VID_H];
-	uint8_t _alignedData[1024 * 704];
-	cv::Mat _frameMask;
+	uint8_t _postFrameData[VID_W * VID_H];	
 	int _frameLimit;
 
 	bool _Decode();

@@ -90,7 +90,7 @@ void ProcessPixels(void)
 					float cy = (cb->minY + cb->maxY) / 2;
 					float d = distSq(x, y, cx, cy);
 
-					if (d < 16 * 16)
+					if (d < 8 * 8)
 					{
 						if (x < cb->minX) cb->minX = x;
 						if (y < cb->minY) cb->minY = y;

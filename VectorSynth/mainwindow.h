@@ -27,12 +27,11 @@ public:
 	explicit MainWindow(QWidget* parent = 0);
 	~MainWindow();
 
-	void RefreshTakeDeviceList();
-
 signals:
 
 	void OnServerStart();
 	void OnSendData(int ClientId, QByteArray Data);
+	void OnMaskChange(int ClientId, QByteArray Data);
 	void OnStartTimeSync();
 	void OnStartLiveFeed(int ClientId);
 	void OnStartRecording();
@@ -57,8 +56,6 @@ public slots:
 	void OnTrackerFrame(int TrackerId);
 	void OnTrackerMarkersFrame(int TrackerId);
 	void OnTrackerInfoUpdate(int TrackerId);
-
-	void OnTakeTrackerTableSelectionChanged();
 
 	// UI
 	void OnCamSensitivityChange(int Value);
@@ -92,12 +89,15 @@ public slots:
 
 	void OnPlayTimerTick();
 
+	void OnBroadcastRead();
+
 private:
 
 	Ui::MainWindow*		ui;
 	TimelineWidget*		_timeline;
 	CameraView*			_cameraView;
 	QUdpSocket*			_udpSocket;
+	QUdpSocket*			_recvSocket;
 	QTimer*				_timer;
 	QTimer*				_timelineTimer;
 	QTimer*				_sceneViewTimer;
@@ -106,13 +106,15 @@ private:
 	ServerThreadWorker*	_serverWorker;
 	QThread				_serverThread;
 	QSignalMapper*		_deviceListMapper;
+	QElapsedTimer		_mainTimer;
 
 	Take*				_take;
+	std::map<int, LiveTracker*> _liveTrackers;
+	TakeTracker*		_selectedTakeTracker;
+	int					_selectedTracker;
 
 	int					_timelineRequestedFrame;
 	int					_timelineCurrentFrame;
-
-	TakeTracker*		_selectedTakeTracker;
 
 	QTimer*				_playTimer;
 	float				_playFrame;
@@ -124,9 +126,11 @@ private:
 
 public:
 
-	std::map<int, LiveTracker*> liveTrackers;
-	int		selectedTracker;
+	
 
 	void viewFeed(int TrackedId, bool Image);
 	void selectTracker(LiveTracker* Tracker);
+	LiveTracker* GetTracker(int TrackerId);
+
+	void changeMask(LiveTracker* Tracker);
 };
