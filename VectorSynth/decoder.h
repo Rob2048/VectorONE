@@ -71,10 +71,20 @@ public:
 	cv::Mat						_calibDistCoeffs;
 	cv::Mat						optCamMat;
 	cv::Mat						projMat;
-	cv::Mat						unitProjMat;
+	cv::Mat						unitProjMat;	
 	QMatrix4x4					worldMat;
 	cv::Mat						fundamentalMat;
 	QVector3D					worldPos;
+
+	cv::Mat						refRt; // Same as Pu
+	cv::Mat						refR;
+	cv::Mat						refT;
+	QMatrix4x4					refWorldMat;
+	cv::Mat						refK;
+	cv::Mat						refOptK;
+	cv::Mat						refPu;
+	cv::Mat						refP;
+	cv::Mat						refD;
 
 	uint8_t						frameMaskData[128 * 88];
 	

@@ -47,6 +47,9 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	QJsonArray jsonExtrinProj = trackerObj["extrinsic"].toObject()["proj"].toArray();
 	QJsonArray jsonExtrinWorld = trackerObj["extrinsic"].toObject()["world"].toArray();
 	QJsonArray jsonExtrinFundamental = trackerObj["extrinsic"].toObject()["fundamental"].toArray();
+	QJsonArray jsonExtrinRt = trackerObj["refined"].toObject()["rt"].toArray();
+	QJsonArray jsonExtrinD = trackerObj["refined"].toObject()["d"].toArray();
+	QJsonArray jsonExtrinK = trackerObj["refined"].toObject()["k"].toArray();
 
 	tracker->decoder = new Decoder();
 	tracker->decoder->camSensitivity = tracker->sensitivity;
@@ -95,8 +98,90 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	}
 
 	tracker->decoder->CalculateOptMat();
-
 	tracker->decoder->projMat = tracker->decoder->optCamMat * tracker->decoder->unitProjMat;
+
+	//---------------------------------------------------------------------------------------------------------------
+	// Load and process refined data.
+	//---------------------------------------------------------------------------------------------------------------
+	Decoder* d = tracker->decoder;
+
+	d->refR = cv::Mat(3, 3, CV_64F);
+	d->refT = cv::Mat(3, 1, CV_64F);
+	d->refD = cv::Mat::zeros(5, 1, CV_64F);
+	d->refK = cv::Mat::eye(3, 3, CV_64F);
+	d->refRt = cv::Mat::eye(3, 4, CV_64F);
+
+	for (int iY = 0; iY < 4; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			d->refRt.at<double>(iX, iY) = jsonExtrinRt[iX * 4 + iY].toDouble();
+		}
+	}
+
+	for (int iY = 0; iY < 3; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			tracker->decoder->refR.at<double>(iX, iY) = d->refRt.at<double>(iX, iY);
+		}
+	}
+
+	for (int iX = 0; iX < 3; ++iX)
+	{
+		tracker->decoder->refT.at<double>(iX, 0) = d->refRt.at<double>(iX, 3);
+	}
+
+	for (int iX = 0; iX < 5; ++iX)
+	{
+		tracker->decoder->refD.at<double>(iX) = jsonExtrinD[iX].toDouble();
+	}
+
+	for (int iY = 0; iY < 3; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			d->refK.at<double>(iX, iY) = jsonExtrinK[iY * 3 + iX].toDouble();
+		}
+	}
+
+	d->refOptK = cv::getOptimalNewCameraMatrix(d->refK, d->refD, cv::Size(VID_W, VID_H), 0.0, cv::Size(VID_W, VID_H), NULL, true);
+
+	cv::Mat trueT = -(d->refR).t() * d->refT;
+	d->refPu = cv::Mat(3, 4, d->refR.type());
+	d->refPu(cv::Range::all(), cv::Range(0, 3)) = d->refR * 1.0;
+	d->refPu.col(3) = d->refT * 1.0;
+
+	d->refP = d->refOptK * d->refPu.clone();
+
+	d->refWorldMat(0, 0) = d->refR.at<double>(0, 0);
+	d->refWorldMat(1, 0) = d->refR.at<double>(0, 1);
+	d->refWorldMat(2, 0) = d->refR.at<double>(0, 2);
+	d->refWorldMat(3, 0) = 0;
+
+	d->refWorldMat(0, 1) = d->refR.at<double>(1, 0);
+	d->refWorldMat(1, 1) = d->refR.at<double>(1, 1);
+	d->refWorldMat(2, 1) = d->refR.at<double>(1, 2);
+	d->refWorldMat(3, 1) = 0;
+
+	d->refWorldMat(0, 2) = d->refR.at<double>(2, 0);
+	d->refWorldMat(1, 2) = d->refR.at<double>(2, 1);
+	d->refWorldMat(2, 2) = d->refR.at<double>(2, 2);
+	d->refWorldMat(3, 2) = 0;
+
+	d->refWorldMat(0, 3) = trueT.at<double>(0);
+	d->refWorldMat(1, 3) = trueT.at<double>(1);
+	d->refWorldMat(2, 3) = trueT.at<double>(2);
+	d->refWorldMat(3, 3) = 1;
+
+	/*
+	stringstream ss;
+	ss << tracker->decoder->unitProjMat << endl << endl << tracker->decoder->refinedMat << endl << endl
+		<< tracker->decoder->refR << endl << endl << tracker->decoder->refT << endl << endl;
+	qDebug() << "Check Mats:" << ss.str().c_str();
+	*/
+
+	//---------------------------------------------------------------------------------------------------------------
 
 	char fileName[256];
 	QString maskFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".mask";
@@ -243,7 +328,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 
 	qDebug() << "Tracker: Loaded" << Serial;
 
-	//*
+	/*
 	for (int i = 0; i < tracker->vidFrameData.count(); ++i)
 	{
 		VidFrameData* vfdp = &tracker->vidFrameData[i];

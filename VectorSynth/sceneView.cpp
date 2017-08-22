@@ -626,17 +626,17 @@ void SceneView::paintGL()
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
 
-			imgPt = cv::Matx31d(1000, 0, 1);
+			imgPt = cv::Matx31d(VID_W, 0, 1);
 			imgPt = m33Inv * imgPt;
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
 
-			imgPt = cv::Matx31d(1000, 750, 1);
+			imgPt = cv::Matx31d(VID_W, VID_H, 1);
 			imgPt = m33Inv * imgPt;
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
 
-			imgPt = cv::Matx31d(0, 750, 1);
+			imgPt = cv::Matx31d(0, VID_H, 1);
 			imgPt = m33Inv * imgPt;
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
@@ -707,8 +707,11 @@ void SceneView::paintGL()
 			*/
 
 			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->worldMat);
-
 			_gizmoBuffer.write(0, _gizmoData, _gizmoIndex * sizeof(VertexData));
+			glDrawArrays(GL_LINES, 0, _gizmoIndex);
+
+			//_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * (take->trackers[0]->decoder->refWorldMat.inverted() * take->trackers[i]->decoder->refWorldMat));
+			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->refWorldMat);
 			glDrawArrays(GL_LINES, 0, _gizmoIndex);
 		}
 
