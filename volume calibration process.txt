@@ -1,0 +1,64 @@
+Volume & camera calibration.
+---------------------------------------------------------------------------------------
+
+Build 2D markers.
+---------------------------------------------------------------------------------------
+- Undistort with pre calibrated K, D(k1, k2, p1, p2).
+- Clip to view bounds. (Maybe not required? - depends on distortion issues).
+
+
+Phase 1 - Build rough extrinsic parameters.
+---------------------------------------------------------------------------------------
+
+- For each camera & root camera pair:
+	- Find corresponding points.
+		- Look for frames that have a single 2D marker across all cameras and assume a match. 
+			(Closest point match should remove outliers)	
+	- Find fundamental matrix using Levenberg-Marquardt.
+	- Epiline errors may be useful to minimize sync video error.
+	- Essential matrix = Kt * fMat * K.
+	- Recover R,t for second camera in pair relative to first.
+		- Uses faux focal length and principal point.
+		- t is unit vector, needs to be scaled.
+	- Calculate camera matrices.
+	- Pairwise triangulate 3D markers.
+	- Build scale value by comparing 3D markers to root pair markers.
+	- Scale t by scale value.
+	- Calculate camera matrices.
+
+- Output:  Need R, t - relative to world 0,0,0 (Root camera).
+
+
+Phase 2 - Create refined extrinsic & intrinsic parameters.
+---------------------------------------------------------------------------------------
+- Inputs: K, R, t, D(k1, k2, p1, p2)
+- Bundle adjust.
+- Outputs: K', R', t', D(k1, k2, p1, p2)'
+
+
+Calculate camera matrices.
+---------------------------------------------------------------------------------------
+- Inputs: K, R, t
+
+Cw (Camera world matrix) = [R|(-Rt * t)]
+Pu (Camera unit projection matrix) = [R|t]
+P (Camera projection matrix) = K[R|t]
+
+
+Build 3D markers.
+---------------------------------------------------------------------------------------
+Assumes no distortion.
+
+- Inputs: K, W
+
+- Build 2D marker rays in world space.
+	- CSR(camera space ray direction) = Kinv[vec3(undistorted point pixel coords,1)]
+	- WSR(world space ray direction) = W * vec4(CSR,0)
+	- WSO(world space ray origin) = W * vec4(0,0,0,1)
+
+- Find corresponding rays.
+	- A: Match 2D marker rays in undistorted camera space using pixel distance.
+		- Project ray into camera space. P projects world to undistorted camspace.
+	- B: Match 2D marker rays in world space using world unit distance.
+
+- Find closest point between corresponding rays.
