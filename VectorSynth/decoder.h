@@ -36,9 +36,13 @@ using namespace std;
 class NewMarker
 {
 public:
+	QVector2D openCVPos;
+	QVector2D openCVPosUndistorted;
+	
 	QVector2D pos;
-	QVector4D bounds;
 	QVector2D distPos;
+	QVector4D bounds;
+	QVector3D worldRay;
 };
 
 class Decoder
@@ -85,6 +89,7 @@ public:
 	cv::Mat						refPu;
 	cv::Mat						refP;
 	cv::Mat						refD;
+	QVector3D					refWorldPos;
 
 	uint8_t						frameMaskData[128 * 88];
 	

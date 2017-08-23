@@ -42,7 +42,8 @@ public:
 	int bufferPosition;
 	QList<QVector2D> markers;
 	QList<NewMarker> newMarkers;
-	QList<EpipolarLine> epiLines;
+	
+	QList<EpipolarLine> epiLines;	
 };
 
 class VidKeyFrameData

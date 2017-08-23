@@ -123,18 +123,18 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	{
 		for (int iX = 0; iX < 3; ++iX)
 		{
-			tracker->decoder->refR.at<double>(iX, iY) = d->refRt.at<double>(iX, iY);
+			d->refR.at<double>(iX, iY) = d->refRt.at<double>(iX, iY);
 		}
 	}
 
 	for (int iX = 0; iX < 3; ++iX)
 	{
-		tracker->decoder->refT.at<double>(iX, 0) = d->refRt.at<double>(iX, 3);
+		d->refT.at<double>(iX, 0) = d->refRt.at<double>(iX, 3);
 	}
 
 	for (int iX = 0; iX < 5; ++iX)
 	{
-		tracker->decoder->refD.at<double>(iX) = jsonExtrinD[iX].toDouble();
+		d->refD.at<double>(iX) = jsonExtrinD[iX].toDouble();
 	}
 
 	for (int iY = 0; iY < 3; ++iY)
@@ -173,6 +173,12 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	d->refWorldMat(1, 3) = trueT.at<double>(1);
 	d->refWorldMat(2, 3) = trueT.at<double>(2);
 	d->refWorldMat(3, 3) = 1;
+
+	QVector4D hwPos = d->refWorldMat * QVector4D(0, 0, 0, 1);
+
+	d->refWorldPos.setX(hwPos.x() / hwPos.w());
+	d->refWorldPos.setY(hwPos.y() / hwPos.w());
+	d->refWorldPos.setZ(hwPos.z() / hwPos.w());
 
 	/*
 	stringstream ss;
@@ -1378,22 +1384,4 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 		Scene->pushSamplePoint(QVector3D(x, y, z));
 		//markers[i].pos = QVector3D(x, y, z);
 	}
-
-	/*
-	cv::Mat dpmC;
-	cv::Mat dpmR;
-	cv::Mat dpmT;
-	cv::Mat eulers;
-	cv::decomposeProjectionMatrix(P1, dpmC, dpmR, dpmT, cv::noArray(), cv::noArray(), cv::noArray(), eulers);
-	Scene->cam2Rot = { (float)eulers.at<double>(0), (float)eulers.at<double>(1), (float)eulers.at<double>(2) };
-
-	// MAGICAL MATRIX CONSTRUCTION ACHEIVED
-	QMatrix4x4 cam2Mat;
-	cam2Mat.setToIdentity();
-	cam2Mat.translate(Scene->cam2Translate.x(), Scene->cam2Translate.y(), Scene->cam2Translate.z());	
-	cam2Mat.rotate(-Scene->cam2Rot.x(), 1.0f, 0.0f, 0.0f);	
-	cam2Mat.rotate(-Scene->cam2Rot.y(), 0.0f, 1.0f, 0.0f);
-	cam2Mat.rotate(-Scene->cam2Rot.z(), 0.0f, 0.0f, 1.0f);
-	qDebug() << "Built Mat:" << cam2Mat;
-	*/
 }
