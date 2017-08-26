@@ -335,16 +335,13 @@ bool Decoder::DoDecodeSingleFrame(uint8_t* Data, int Len, int* Consumed)
 
 void Decoder::_CreateFrameGray()
 {
-	//sws_scale(sws, frame->data, frame->linesize, 0, VID_H, frameRGB->data, frameRGB->linesize);
-	
 	QElapsedTimer t;
 	t.start();
 
 	int lineSize = frame->linesize[0];
 	uint8_t* lumBuffer = frame->data[0];
 
-	// 1024 x 704
-
+#if 1
 	for (int iY = 0; iY < VID_H; ++iY)
 	{
 		for (int iX = 0; iX < VID_W; ++iX)
@@ -368,27 +365,21 @@ void Decoder::_CreateFrameGray()
 			_postFrameData[dataIndex] = (uint8_t)(l * 255) * frameMaskData[(iY / 8) * 128 + (iX / 8)];
 		}
 	}
-	
-#if 0
+#else
 	float invByteRange = 1.0f / (255.0f - 16.0f);
 
 	__m128i v16 = _mm_set1_epi8(16);
-	//__m256i v16 = _mm256_set1_epi8(16);
+	
+	qDebug() << "Aligned Data:" << ((unsigned long)(_postFrameData) & 15);
 
-	//qDebug() << "Aligned Data:" << ((unsigned long)(_alignedData) & 15);
-
-#if 0
+	// NOTE: Data must be 16byte aligned and both array dimensions must be divisible by 32.
 	for (int iY = 0; iY < VID_H; ++iY)
 	{
-		for (int iX = 0; iX < 992; iX += 32)
+		for (int iX = 0; iX < VID_W; iX += 16)
 		{
-			//__m128i lum = _mm_loadu_si128((__m128i const*)&lumBuffer[iY * lineSize + iX]);
-			//__m128i lumSub16 = _mm_subs_epu8(lum, v16);
-			//_mm_store_si128((__m128i*)(&_alignedData[iY * 1024 + iX]), lumSub16);
-
-			__m256i lum = _mm256_loadu_si256((__m256i const*)&lumBuffer[iY * lineSize + iX]);
-			__m256i lumSub16 = _mm256_subs_epu8(lum, v16);
-			_mm256_store_si256((__m256i*)(&_alignedData[iY * 1024 + iX]), lumSub16);
+			__m128i lum = _mm_loadu_si128((__m128i const*)&lumBuffer[iY * lineSize + iX]);
+			__m128i lumSub16 = _mm_subs_epu8(lum, v16);
+			_mm_store_si128((__m128i*)(&_postFrameData[iY * VID_W + iX]), lumSub16);
 
 			/*
 			uint8_t lum0 = lumBuffer[iY * lineSize + iX + 0];
@@ -417,28 +408,19 @@ void Decoder::_CreateFrameGray()
 			*/
 		}
 	}
-#endif
 
-	for (int iX = 0; iX < 992 * VID_H; iX += 16)
+	for (int iX = 0; iX < VID_W * VID_H; iX += 16)
 	{
 		__m128i lum = _mm_loadu_si128((__m128i const*)&lumBuffer[iX]);
 		__m128i lumSub16 = _mm_subs_epu8(lum, v16);
-		_mm_store_si128((__m128i*)(&_alignedData[iX]), lumSub16);
-	}
-
-	float t1 = (t.nsecsElapsed() / 1000) / 1000.0;
-	//qDebug() << "Gray Pass1" << t1;
-
-	for (int iY = 0; iY < VID_H; ++iY)
-	{
-		for (int iX = 0; iX < VID_W; ++iX)
-		{
-			_postFrameData[iY * VID_W + iX] = _alignedData[iY * 1024 + iX];
-		}
+		_mm_store_si128((__m128i*)(&_postFrameData[iX]), lumSub16);
 	}
 #endif
 
 	cvFrame = Mat(VID_H, VID_W, CV_8UC1, _postFrameData);
+
+	//float t1 = (t.nsecsElapsed() / 1000) / 1000.0;
+	//qDebug() << "Gray Pass:" << t1;
 }
 
 void Decoder::ProcessFrameLive()
@@ -489,15 +471,11 @@ void Decoder::ProcessFrame()
 {
 	_CreateFrameGray();
 
-	/*
-	if (drawUndistorted)
-	{
-		_undistort();
-	}
-	*/
-
-	_undistort();
+	undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs, optCamMat);
+	//undistort(cvFrame, undistortMat, refK, refD, refOptK);
 	cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
+
+	// No undistortion.
 	//cv::cvtColor(cvFrame, colMat, cv::COLOR_GRAY2RGB);
 
 	/*
@@ -589,7 +567,7 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 	if (blankFrame)
 		return markers;
 
-	//_CreateFrameGray();
+	_CreateFrameGray();
 
 	QElapsedTimer t;
 	t.start();
@@ -653,8 +631,6 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 		}
 	}
 
-	qDebug() << "Custom:" << ((t.nsecsElapsed() / 1000) / 1000.0) << "ms";
-
 	for (int i = 0; i < blobCount; ++i)
 	{
 		if (blobs[i].maxX - blobs[i].minX < 2 || blobs[i].maxY - blobs[i].minY < 2)
@@ -716,12 +692,12 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 	*/
 
 	//*
-	// Undistort markers.
+	// Undistort markers with default mats.
 	if (markers.size() > 0)
 	{
 		cv::Mat_<cv::Point2f> matPoint(1, markers.size());
 		for (int i = 0; i < markers.size(); ++i)
-			matPoint(i) = Point2f(markers[i].pos.x(), markers[i].pos.y());
+			matPoint(i) = Point2f(markers[i].distPos.x(), markers[i].distPos.y());
 
 		cv::Mat matOutPoints;
 		cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
@@ -736,13 +712,37 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 			if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
 			{
 				markers[i].pos = QVector2D(p.x, p.y);
-				//NewMarker m = {};
-				//m.pos = QVector2D(p.x, p.y);
-				//markers.push_back(m);
+			}
+		}
+	}
+
+	/*
+	// Undistort markers with refined mats.
+	if (markers.size() > 0)
+	{
+		cv::Mat_<cv::Point2f> matPoint(1, markers.size());
+		for (int i = 0; i < markers.size(); ++i)
+			matPoint(i) = Point2f(markers[i].distPos.x(), markers[i].distPos.y());
+
+		cv::Mat matOutPoints;
+		cv::undistortPoints(matPoint, matOutPoints, refK, refD, cv::noArray(), refOptK);
+
+		//markers.clear();
+
+		// Clip markers.
+		for (int i = 0; i < matOutPoints.size().width; ++i)
+		{
+			Point2f p = matOutPoints.at<cv::Point2f>(i);
+
+			if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
+			{
+				markers[i].refPos = QVector2D(p.x, p.y);
 			}
 		}
 	}
 	//*/
+
+	//qDebug() << "Custom:" << ((t.nsecsElapsed() / 1000) / 1000.0) << "ms";
 
 	return markers;
 }
@@ -809,8 +809,8 @@ void Decoder::_detectValibSheet()
 void Decoder::_undistort()
 {
 	//cvFrame = umat.clone(); Mat umat;
-	undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs, optCamMat);
-	//undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs);
+	//undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs, optCamMat);
+	undistort(cvFrame, undistortMat, refK, refD, refOptK);
 }
 
 void Decoder::_findCalibrationSheet()

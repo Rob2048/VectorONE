@@ -36,13 +36,17 @@ using namespace std;
 class NewMarker
 {
 public:
+
 	QVector2D openCVPos;
 	QVector2D openCVPosUndistorted;
 	
-	QVector2D pos;
+	QVector2D pos;	
 	QVector2D distPos;
 	QVector4D bounds;
-	QVector3D worldRay;
+	QVector3D worldRayD;
+
+	QVector2D refPos;
+	QVector3D refWorldRayD;
 };
 
 class Decoder
@@ -143,7 +147,11 @@ private:
 	int destHeight;
 	int lastFrame = 0;
 	int _parsedFrames = 0;
-	uint8_t _postFrameData[VID_W * VID_H];	
+
+	// NOTE: Align to 16byte boundry
+	uint8_t __pad[8];
+	uint8_t _postFrameData[VID_W * VID_H];
+
 	int _frameLimit;
 
 	bool _Decode();

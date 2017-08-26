@@ -467,6 +467,31 @@ void SceneView::paintGL()
 
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
 				}
+
+				if (fI == timelineFrame)
+				{
+					QVector3D rm = take->refMarkers[fI];
+					QVector3D markerPos = (_pointWorldMat * QVector4D(rm.x(), rm.y(), rm.z(), 1.0f)).toVector3DAffine();
+					QMatrix4x4 markerMat;
+					markerMat.translate(markerPos);
+					markerMat.scale(0.015f);
+					_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
+					_minimalShader.setUniformValue("u_color", QVector4D(1, 0, 1, 1));
+					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
+				}
+
+				// Calib marker
+				if (fI == timelineFrame && take->calibMarkers.size() > fI + 1)
+				{
+					QVector3D rm = take->calibMarkers[fI];
+					QVector3D markerPos = (_pointWorldMat * QVector4D(rm.x(), rm.y(), rm.z(), 1.0f)).toVector3DAffine();
+					QMatrix4x4 markerMat;
+					markerMat.translate(markerPos);
+					markerMat.scale(0.015f);
+					_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
+					_minimalShader.setUniformValue("u_color", QVector4D(0, 0, 1, 1));
+					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
+				}
 			}
 		}
 	}
@@ -544,6 +569,23 @@ void SceneView::paintGL()
 		//gizmoPush({ o ,{ 1, 0, 0 } }); gizmoPush({ o + take->wX ,{ 1, 0, 0 } });
 		//gizmoPush({ o ,{ 0, 1, 0 } }); gizmoPush({ o + take->wY ,{ 0, 1, 0 } });
 		//gizmoPush({ o ,{ 0, 0, 1 } }); gizmoPush({ o + take->wZ ,{ 0, 0, 1 } });
+
+		for (int i = 0; i < take->trackers.count(); ++i)
+		{
+			TakeTracker* t = take->trackers[i];
+			int localTrackerFrame = timelineFrame + t->frameOffset;
+
+			for (int mIdx = 0; mIdx < t->vidFrameData[localTrackerFrame].newMarkers.size(); ++mIdx)
+			{
+				NewMarker* m = &t->vidFrameData[localTrackerFrame].newMarkers[mIdx];
+
+				gizmoPush({ t->decoder->worldPos ,{ 1, 0, 1 } });
+				gizmoPush({ t->decoder->worldPos + m->worldRayD, { 1, 0, 1 } });
+
+				gizmoPush({ t->decoder->refWorldPos ,{ 0, 1, 1 } });
+				gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
+			}
+		}
 	}
 
 	// Pick ray.
@@ -641,6 +683,7 @@ void SceneView::paintGL()
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
 
+			/*
 			// Marker projections.
 			for (int mIdx = 0; mIdx < take->markers[timelineFrame].size(); ++mIdx)
 			{
@@ -665,34 +708,6 @@ void SceneView::paintGL()
 				gizmoPush({ { d * mDist },{ 0.25f, 0.5f, 0.25f } });
 
 				//markerFound = true;
-				if (i == 0)
-				{
-					po[0] = QVector3D(0, 0, 0);
-					pd[0] = d;
-				}
-				else
-				{
-					po[1] = (take->trackers[i]->decoder->worldMat * QVector4D(0, 0, 0, 1)).toVector3D();
-					pd[1] = (take->trackers[i]->decoder->worldMat * QVector4D(d, 0)).toVector3D();
-				}
-			}
-
-			/*
-			if (frameMarker)
-			{
-				if (i == 0)
-					imgPt = cv::Matx31d(frameMarker->cam1pos.x(), frameMarker->cam1pos.y(), 1);
-				else
-					imgPt = cv::Matx31d(frameMarker->cam2pos.x(), frameMarker->cam2pos.y(), 1);
-
-				imgPt = m33Inv * imgPt;
-				QVector3D d((float)imgPt(0, 0), (float)imgPt(1, 0), (float)imgPt(2, 0));
-				d.normalize();
-
-				gizmoPush({ { 0, 0, 0 }, {1, 0, 0} });
-				gizmoPush({ { d * 2 },{ 1, 0, 0 } });
-
-				markerFound = true;
 				if (i == 0)
 				{
 					po[0] = QVector3D(0, 0, 0);

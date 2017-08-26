@@ -107,7 +107,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 
 	d->refR = cv::Mat(3, 3, CV_64F);
 	d->refT = cv::Mat(3, 1, CV_64F);
-	d->refD = cv::Mat::zeros(5, 1, CV_64F);
+	d->refD = cv::Mat::zeros(4, 1, CV_64F);
 	d->refK = cv::Mat::eye(3, 3, CV_64F);
 	d->refRt = cv::Mat::eye(3, 4, CV_64F);
 
@@ -132,7 +132,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		d->refT.at<double>(iX, 0) = d->refRt.at<double>(iX, 3);
 	}
 
-	for (int iX = 0; iX < 5; ++iX)
+	for (int iX = 0; iX < 4; ++iX)
 	{
 		d->refD.at<double>(iX) = jsonExtrinD[iX].toDouble();
 	}
@@ -305,7 +305,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 			{
 				QVector2D pos;
 				stream >> pos;
-				tracker->vidFrameData[i].markers.push_back(pos);
+				//tracker->vidFrameData[i].markers.push_back(pos);
 			}
 
 			int newMarkerCount = 0;
@@ -315,11 +315,17 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 			{
 				QVector2D pos;
 				QVector2D distPos;
+				QVector2D refPos;
 				QVector4D bounds;
 				stream >> bounds;
 				stream >> pos;
 				stream >> distPos;
-				NewMarker marker = { pos, bounds, distPos };
+				stream >> refPos;
+				NewMarker marker = {};
+				marker.pos = pos;
+				marker.bounds = bounds;
+				marker.distPos = distPos;
+				marker.refPos = refPos;
 				tracker->vidFrameData[i].newMarkers.push_back(marker);
 			}
 		}
@@ -534,18 +540,21 @@ void TakeTracker::Save()
 
 	for (int i = 0; i < vidFrameData.count(); ++i)
 	{
+		/*
 		m2dStream << vidFrameData[i].markers.count();
 
 		for (int m = 0; m < vidFrameData[i].markers.count(); ++m)
 		{
 			m2dStream << vidFrameData[i].markers[m];
 		}
+		*/
 
 		m2dStream << vidFrameData[i].newMarkers.count();
 
-		for (int m = 0; m < vidFrameData[i].newMarkers.count(); ++m)
+		for (int iM = 0; iM < vidFrameData[i].newMarkers.count(); ++iM)
 		{
-			m2dStream << vidFrameData[i].newMarkers[m].bounds << vidFrameData[i].newMarkers[m].pos << vidFrameData[i].newMarkers[m].distPos;
+			NewMarker* m = &vidFrameData[i].newMarkers[iM];
+			m2dStream << m->bounds << m->pos << m->distPos << m->refPos;
 		}
 	}
 
@@ -607,16 +616,68 @@ void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
 		tmr.start();
 		AdvanceFrame(1);
 		qint64 t1 = tmr.nsecsElapsed();
-		vidFrameData[i].markers = decoder->ProcessFrameMarkers();
 		vidFrameData[i].newMarkers = decoder->ProcessFrameNewMarkers();
 		qint64 t2 = tmr.nsecsElapsed();
 
-		float tT = (t2 / 1000) / 1000.0;
-		float tf1 = (t1 / 1000) / 1000.0;
-		float tf2 = ((t2 - t1) / 1000) / 1000.0;
+		float tTotal = (t2 / 1000) / 1000.0;
+		float tDecode = (t1 / 1000) / 1000.0;
+		float tCentroids = ((t2 - t1) / 1000) / 1000.0;
 
-		//qDebug() << i << "Markers:" << vidFrameData[i].markers.count() << "Time:" << tf1 << tf2;
-		qDebug() << i << "Markers:" << vidFrameData[i].newMarkers.count() << "Time:" << tT;
+		qDebug() << i << "Markers:" << vidFrameData[i].newMarkers.count() << "Time:" << tTotal << tDecode << tCentroids;
+	}
+}
+
+void TakeTracker::BuildRays(int StartFrame, int EndFrame)
+{
+	int startKeyFrameIndex;
+	int startFrameIndex;
+
+	int localStartFrame = StartFrame - frameOffset;
+	int localEndFrame = EndFrame - frameOffset;
+
+	if (localStartFrame < 0)
+		localStartFrame = 0;
+	else if (localStartFrame >= vidFrameData.count())
+		localStartFrame = vidFrameData.count();
+
+	if (localEndFrame < 0)
+		localEndFrame = 0;
+	else if (localEndFrame >= vidFrameData.count())
+		localEndFrame = vidFrameData.count();
+
+	std::vector<cv::Point2f> points;
+	std::vector<cv::Point3f> elines;
+
+	cv::Matx33d m33((double*)decoder->optCamMat.ptr());
+	cv::Matx33d m33Inv = m33.inv();
+
+	cv::Matx33d refM33((double*)decoder->refOptK.ptr());
+	cv::Matx33d refM33Inv = refM33.inv();
+
+	for (int i = localStartFrame; i <= localEndFrame; ++i)
+	{
+		for (int j = 0; j < vidFrameData[i].newMarkers.count(); ++j)
+		{
+			NewMarker* m = &vidFrameData[i].newMarkers[j];
+
+			{
+				cv::Matx31d imgPt(m->pos.x(), m->pos.y(), 1);
+				imgPt = m33Inv * imgPt;
+				QVector3D d((float)imgPt(0, 0), (float)imgPt(1, 0), (float)imgPt(2, 0));
+				d.normalize();
+
+				m->worldRayD = (decoder->worldMat * QVector4D(d, 0)).toVector3D();
+			}
+
+			{
+				cv::Matx31d imgPt(m->refPos.x(), m->refPos.y(), 1);
+				imgPt = refM33Inv * imgPt;
+				QVector3D d((float)imgPt(0, 0), (float)imgPt(1, 0), (float)imgPt(2, 0));
+				d.normalize();
+
+				m->refWorldRayD = (decoder->refWorldMat * QVector4D(d, 0)).toVector3D();
+			}
+		}
 	}
 }
 
@@ -829,6 +890,35 @@ void Take::LoadTake(QString Name)
 	}
 
 	_AdjustRuntime();
+
+	QFile refMarkerFile("project/take/refinedPoints.txt");
+
+	if (refMarkerFile.open(QIODevice::ReadOnly | QIODevice::Text))
+	{
+		for (int i = 0; i < timeFrames; ++i)
+		{
+			refMarkers.push_back(QVector3D());
+		}
+
+		while (true)
+		{
+			QString line(refMarkerFile.readLine());
+
+			if (line.length() == 0)
+				break;
+
+			QStringList params = line.split(' ');
+			int index = params[0].toInt();
+			float x = params[1].toDouble();
+			float y = params[2].toDouble();
+			float z = params[3].toDouble();
+
+			qDebug() << "Ref Marker" << index << x << y << z;
+			refMarkers[index] = QVector3D(x, y, z);
+		}
+
+		refMarkerFile.close();
+	}
 }
 
 void Take::Save()
@@ -960,18 +1050,18 @@ void Take::Build2DMarkers(int StartFrame, int EndFrame)
 
 Marker3D Take::_triangulate(NewMarker M1, NewMarker M2)
 {
-	std::vector<cv::Point2f> trackerPoints[2];
-	trackerPoints[0].push_back(cv::Point2f(M1.pos.x(), M1.pos.y()));
-	trackerPoints[1].push_back(cv::Point2f(M2.pos.x(), M2.pos.y()));
+	std::vector<cv::Point2d> trackerPoints[2];
+	trackerPoints[0].push_back(cv::Point2d(M1.pos.x(), M1.pos.y()));
+	trackerPoints[1].push_back(cv::Point2d(M2.pos.x(), M2.pos.y()));
 
 	cv::Mat Q;
 	triangulatePoints(trackers[0]->decoder->projMat, trackers[1]->decoder->projMat, trackerPoints[0], trackerPoints[1], Q);
 
 	// Convert points from homogeneous to world.
-	float w = Q.at<float>(3, 0);
-	float x = Q.at<float>(0, 0) / w;
-	float y = Q.at<float>(1, 0) / w;
-	float z = Q.at<float>(2, 0) / w;
+	float w = Q.at<double>(3, 0);
+	float x = Q.at<double>(0, 0) / w;
+	float y = Q.at<double>(1, 0) / w;
+	float z = Q.at<double>(2, 0) / w;
 
 	Marker3D m = {};
 	m.cam1marker = M1;
@@ -1018,6 +1108,7 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 	for (int i = 0; i < trackers.count(); ++i)
 	{
 		trackers[i]->BuildEpilines(StartFrame, EndFrame);
+		trackers[i]->BuildRays(StartFrame, EndFrame);
 	}
 
 	// Build markers from the camera pair.
@@ -1157,6 +1248,7 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 
 	std::vector<cv::Point2f> trackerPoints[2];
 	std::vector<cv::Point2f> distTrackerPoints[2];
+	std::vector<int> pointFrameIndex;
 	
 	int tfIndex[2] = {};
 
@@ -1201,19 +1293,10 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 
 					trackerPoints[0].push_back(cv::Point2f(t0->newMarkers[0].pos.x(), t0->newMarkers[0].pos.y()));
 					trackerPoints[1].push_back(cv::Point2f(t1->newMarkers[0].pos.x(), t1->newMarkers[0].pos.y()));
+					pointFrameIndex.push_back(tfT0);
 
 					distTrackerPoints[0].push_back(cv::Point2f(t0->newMarkers[0].distPos.x(), t0->newMarkers[0].distPos.y()));
 					distTrackerPoints[1].push_back(cv::Point2f(t1->newMarkers[0].distPos.x(), t1->newMarkers[0].distPos.y()));
-					
-					//EpipolarLine line = {};
-					//line.timelineFrame = tfT0;
-					//epiLines.push_back(line);
-
-					//Marker3D marker = {};
-					//marker.timelineFrame = tfT0;
-					//marker.cam1pos = QVector2D(t0->markers[0].x(), t0->markers[0].y());
-					//marker.cam2pos = QVector2D(t1->markers[0].x(), t1->markers[0].y());
-					//markers.push_back(marker);
 				}
 			}
 
@@ -1271,6 +1354,9 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 		return;
 	}
 
+	trackers[0]->decoder->fundamentalMat = fMats;
+	trackers[1]->decoder->fundamentalMat = fMats;
+
 	qDebug() << "Done Building Fundamental" << fMats.size().width << "x" << fMats.size().height;
 
 	//---------------------------------------------------------------------------------------------------
@@ -1278,9 +1364,6 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	//---------------------------------------------------------------------------------------------------
 	std::vector<cv::Point3f> elines;
 	std::vector<cv::Point3f> elines2;
-
-	trackers[0]->decoder->fundamentalMat = fMats;
-	trackers[1]->decoder->fundamentalMat = fMats;
 
 	cv::computeCorrespondEpilines(trackerPoints[0], 1, fMats, elines);
 	cv::computeCorrespondEpilines(trackerPoints[1], 2, fMats, elines2);
@@ -1292,13 +1375,22 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	// NOTE: Second camera K first.
 	essentialMat = trackers[1]->decoder->optCamMat.t() * fMats * trackers[0]->decoder->optCamMat;
 
-	/*
+	cv::Mat em2(3, 3, CV_64F);
+	// NOTE: Second camera K first.
+	em2 = trackers[0]->decoder->optCamMat.t() * fMats * trackers[1]->decoder->optCamMat;
+
+	stringstream s;
+	s << essentialMat << "\n\n" << em2;
+	qDebug() << "Essentials: " << s.str().c_str();
+
+	//*
 	// Manual	
 	cv::SVD svd(essentialMat);
 	cv::Mat u = svd.u;
 	cv::Mat vt = svd.vt;
 	cv::Mat w = svd.w;
 	cv::Mat W(3, 3, CV_64F);
+	//*
 	W.at<double>(0, 0) = 0;
 	W.at<double>(0, 1) = -1;
 	W.at<double>(0, 2) = 0;
@@ -1308,6 +1400,7 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	W.at<double>(2, 0) = 0;
 	W.at<double>(2, 1) = 0;
 	W.at<double>(2, 2) = 1;
+	//*/
 	cv::Mat_<double> R1 = u * cv::Mat(W) * vt;
 	cv::Mat_<double> R2 = u * cv::Mat(W).t() * vt;
 	cv::Mat_<double> T = u.col(2);
@@ -1316,18 +1409,28 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	s << T << "\n\n" << R1 << "\n\n" << R2;
 	qDebug() << "SVD: " << s.str().c_str();
 
-	cv::Mat decompR;
-	cv::Rodrigues(r, decompR);
-
-	s.str("");
-	s << decompR;
-	qDebug() << "Decomp: " << s.str().c_str();
-	*/
+	//cv::Mat decompR;
+	//cv::Rodrigues(r, decompR);
+	//s.str("");
+	//s << decompR;
+	//qDebug() << "Decomp: " << s.str().c_str();
+	//*/
 
 	cv::Mat r;
 	cv::Mat t;
-	// TODO: Different FL and CP for each camera.
 	cv::recoverPose(essentialMat, trackerPoints[0], trackerPoints[1], r, t, 2.2612, cv::Point2d(512, 352));
+
+	/*
+	for (int iX = 0; iX < 3; ++iX)
+		for (int iY = 0; iY < 3; ++iY)
+		{
+			r.at<double>(iX, iY) = R1.at<double>(iX, iY);
+		}
+	//*/
+	
+	s.str("");
+	s << r << "\n\n" << t;
+	qDebug() << "Pose: " << s.str().c_str();
 
 	cv::Mat trueT = -(r).t() * t;
 	cv::Mat P0 = cv::Mat::eye(3, 4, r.type());
@@ -1373,6 +1476,12 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 	//---------------------------------------------------------------------------------------------------
 	cv::Mat Q;
 	triangulatePoints(P0, P1, trackerPoints[0], trackerPoints[1], Q);
+
+	calibMarkers.clear();
+	for (int i = 0; i < timeFrames; ++i)
+	{
+		calibMarkers.push_back(QVector3D());
+	}
 	
 	for (int i = 0; i < Q.size().width; ++i)
 	{
@@ -1383,5 +1492,7 @@ void Take::BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene)
 
 		Scene->pushSamplePoint(QVector3D(x, y, z));
 		//markers[i].pos = QVector3D(x, y, z);
+
+		calibMarkers[pointFrameIndex[i]] = QVector3D(x, y, z);
 	}
 }

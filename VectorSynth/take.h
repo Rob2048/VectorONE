@@ -12,9 +12,11 @@ class Marker3D
 {
 public:
 
+	QVector3D pos;
+
+	// TODO: All cams that cams that can see marker.
 	NewMarker cam1marker;
 	NewMarker cam2marker;
-	QVector3D pos;
 };
 
 class EpipolarLine
@@ -40,18 +42,10 @@ public:
 	int index;
 	int size;
 	int bufferPosition;
-	QList<QVector2D> markers;
+	//QList<QVector2D> markers;
 	QList<NewMarker> newMarkers;
 	
-	QList<EpipolarLine> epiLines;	
-};
-
-class VidKeyFrameData
-{
-public:
-
-	int time;
-	int frameDataIndex;
+	QList<EpipolarLine> epiLines;
 };
 
 class TakeTracker
@@ -90,6 +84,7 @@ public:
 	void Save();
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void BuildEpilines(int StartFrame, int EndFrame);
+	void BuildRays(int StartFrame, int EndFrame);
 	bool ConvertTimelineToFrame(int TimelineFrame, int* KeyFrameIndex, int* FrameIndex);
 	void DrawMarkers(int FrameIndex);
 	VidFrameData* GetLocalFrame(int TimelineFrame);
@@ -114,6 +109,8 @@ public:
 	float wScale;
 
 	std::vector<std::vector<Marker3D>> markers;
+	std::vector<QVector3D> refMarkers;
+	std::vector<QVector3D> calibMarkers;
 
 	Take();
 	~Take();

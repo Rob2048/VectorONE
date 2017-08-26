@@ -162,32 +162,44 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				for (int fI = tracker->drawMarkerFrameIndex; fI <= tracker->drawMarkerFrameIndex; ++fI)
 				{
 					if (fI >= 0)
-					{
-						qp.setPen(QPen(QColor::fromRgb(255, 128, 32)));
+					{	
 						qp.setBrush(Qt::BrushStyle::NoBrush);
 
+						/*
+						// OpenCV simpleblobdetector
 						for (int i = 0; i < tracker->vidFrameData[fI].markers.count(); ++i)
 						{
 							float x = tracker->vidFrameData[fI].markers[i].x();
 							float y = tracker->vidFrameData[fI].markers[i].y();
+							qp.setPen(QPen(QColor::fromRgb(255, 128, 32)));
 							qp.drawEllipse(_GetVPointF(tX + x, y), 5.0f, 5.0f);
 
 							if (fI == tracker->drawMarkerFrameIndex)
 								qp.drawText(_GetVPointF(tX + x + 5, y + 5), QString::number(x) + ", " + QString::number(y));
 						}
+						*/
 						
+						// Gravity centroids.
 						for (int i = 0; i < tracker->vidFrameData[fI].newMarkers.count(); ++i)
 						{	
 							qp.setPen(Qt::PenStyle::NoPen);
 
 							NewMarker* m = &tracker->vidFrameData[fI].newMarkers[i];
 
-							qp.setBrush(QBrush(QColor::fromRgb(0, 0, 255), Qt::BrushStyle::SolidPattern));
+							// Distorted position
+							qp.setBrush(QBrush(QColor::fromRgb(255, 0, 255), Qt::BrushStyle::SolidPattern));
 							qp.drawEllipse(_GetVPointF(tX + m->distPos.x(), m->distPos.y()), 2.0f, 2.0f);
 
+							// Undistorted position
 							qp.setBrush(QBrush(QColor::fromRgb(0, 255, 0), Qt::BrushStyle::SolidPattern));
 							qp.drawEllipse(_GetVPointF(tX + m->pos.x(), m->pos.y()), 2.0f, 2.0f);
 
+							// Ref undistorted position.
+							//qp.setBrush(QBrush(QColor::fromRgb(0, 255, 255), Qt::BrushStyle::SolidPattern));
+							//qp.drawEllipse(_GetVPointF(tX + m->refPos.x(), m->refPos.y()), 2.0f, 2.0f);
+
+							/*
+							// Distorted bounds.
 							if (fI == tracker->drawMarkerFrameIndex)
 							{
 								qp.setPen(QPen(QColor::fromRgb(0, 255, 0)));
@@ -199,6 +211,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 								qp.setBrush(Qt::BrushStyle::NoBrush);
 								qp.drawRect(QRectF(bMin, bMax));
 							}
+							*/
 						}
 					}
 				}
@@ -212,14 +225,16 @@ void CameraView::paintEvent(QPaintEvent* Event)
 		// NOTE: Draw epipolar line in paired cam view.
 		for (int t = 0; t < take->trackers.count(); ++t)
 		{
+			qp.setPen(QPen(QColor::fromRgb(255, 0, 255)));
 			TakeTracker* tracker = take->trackers[t];
-
+			
 			//float tX = (VID_W + 10) * (1 - t);
 			float tX = 0;
-
+			
 			if (t == 0)
 				tX = (VID_W + 10);
-
+			
+			// Draw epilines from camera pair onto camera image.
 			for (int i = 0; i < tracker->vidFrameData[tracker->drawMarkerFrameIndex].epiLines.count(); ++i)
 			{
 				EpipolarLine e = tracker->vidFrameData[tracker->drawMarkerFrameIndex].epiLines[i];
@@ -227,12 +242,13 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				float a = e.a;
 				float b = e.b;
 				float c = e.c;
-				float y1 = -(a * 0 + c) / b;
-				float y2 = -(a * 1024 + c) / b;
+				float y1 = -(a * -200 + c) / b;
+				float y2 = -(a * 1224 + c) / b;
 
-				qp.drawLine(_GetVPointF(tX, y1), _GetVPointF(tX + 1024, y2));
+				qp.drawLine(_GetVPointF(tX - 200, y1), _GetVPointF(tX + 1224, y2));
 			}
 
+			// Project 3D Markers onto camera image.
 			for (int m = 0; m < take->markers[timelineFrame].size(); ++m)
 			{
 				QVector3D markerPos = take->markers[timelineFrame][m].pos;
@@ -247,15 +263,184 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
-				//cv::distortpoin
-
-				//cv::projectPoints(
-
 				float tX = (VID_W + 10) * t;
+				qp.setPen(QPen(QColor::fromRgb(255, 0, 255)));
 				qp.drawEllipse(_GetVPointF(tX + x, y), 7.0f, 7.0f);
 			}
+
+			// Project 3D Markers onto camera image.
+			if (timelineFrame < take->calibMarkers.size())
+			{
+				QVector3D markerPos = take->calibMarkers[timelineFrame];
+
+				cv::Mat wp(4, 1, CV_64F);
+				wp.at<double>(0) = markerPos.x();
+				wp.at<double>(1) = markerPos.y();
+				wp.at<double>(2) = markerPos.z();
+				wp.at<double>(3) = 1.0;
+
+				cv::Mat imgPt = tracker->decoder->projMat * wp;
+				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+				float tX = (VID_W + 10) * t;
+				qp.setPen(QPen(QColor::fromRgb(0, 0, 255)));
+				qp.drawEllipse(_GetVPointF(tX + x, y), 7.0f, 7.0f);
+			}
+
+			// Ref stuff.
+			/*
+			{	
+				QVector3D markerPos = take->refMarkers[timelineFrame];
+
+				cv::Mat wp(4, 1, CV_64F);
+				wp.at<double>(0) = markerPos.x();
+				wp.at<double>(1) = markerPos.y();
+				wp.at<double>(2) = markerPos.z();
+				wp.at<double>(3) = 1.0;
+
+				cv::Mat imgPt = tracker->decoder->refP * wp;
+				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+				float tX = (VID_W + 10) * t;
+				qp.setPen(QPen(QColor::fromRgb(255, 0, 0)));
+				qp.drawEllipse(_GetVPointF(tX + x, y), 3.0f, 3.0f);
+
+				{
+					std::vector<cv::Point3f> worldPoints;
+					qDebug() << x << y;
+					//worldPoints.push_back(cv::Point3f(x, y, 1));
+					worldPoints.push_back(cv::Point3f(markerPos.x(), markerPos.y(), markerPos.z()));
+					std::vector<cv::Point2f> imgPoints;
+
+					//cv::projectPoints(worldPoints, cv::Mat(cv::Point3f(0, 0, 0)), cv::Mat(cv::Point3f(0, 0, 0)), tracker->decoder->refOptK, tracker->decoder->refD, imgPoints);
+					cv::projectPoints(worldPoints, tracker->decoder->refR, tracker->decoder->refT, tracker->decoder->refK, tracker->decoder->refD, imgPoints);
+
+					for (int i = 0; i < imgPoints.size(); ++i)
+					{
+						qDebug() << "POINT" << imgPoints[i].x << imgPoints[i].y;
+						//cv::circle(colMat, imgPoints[i], 4, Scalar(255, 0, 0), -1, CV_AA);
+						qp.setPen(QPen(QColor::fromRgb(255, 0, 0)));
+						qp.drawEllipse(_GetVPointF(tX + imgPoints[i].x, imgPoints[i].y), 10.0f, 10.0f);
+					}
+				}
+			}
+			*/
 		}
 		//*/
+
+		// Project Rays from camera pair onto camera image.
+		for (int t = 0; t < take->trackers.count(); ++t)
+		{	
+			TakeTracker* tracker = take->trackers[t];
+			float tX = (VID_W + 10) * t;
+
+			// Draw rays from all other trackers
+			for (int tP = 0; tP < take->trackers.count(); ++tP)
+			{
+				if (tP == t)
+					continue;
+
+				TakeTracker* otherTracker = take->trackers[tP];
+
+				QPointF oto;
+				QPointF refOto;
+
+				{
+					QVector3D camPos = otherTracker->decoder->worldPos;
+					
+					cv::Mat wp(4, 1, CV_64F);
+					wp.at<double>(0) = camPos.x();
+					wp.at<double>(1) = camPos.y();
+					wp.at<double>(2) = camPos.z();
+					wp.at<double>(3) = 1.0;
+
+					cv::Mat imgPt = tracker->decoder->projMat * wp;
+					float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+					float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+					float tX = (VID_W + 10) * t;
+					oto = _GetVPointF(tX + x, y);
+
+					qp.setPen(QPen(QColor::fromRgb(255, 255, 0)));
+					qp.drawEllipse(oto, 3.0f, 3.0f);
+				}
+
+				// Ref cam pos
+				/*
+				{
+					QVector3D camPos = otherTracker->decoder->refWorldPos;
+
+					cv::Mat wp(4, 1, CV_64F);
+					wp.at<double>(0) = camPos.x();
+					wp.at<double>(1) = camPos.y();
+					wp.at<double>(2) = camPos.z();
+					wp.at<double>(3) = 1.0;
+
+					cv::Mat imgPt = tracker->decoder->refP * wp;
+					float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+					float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+					float tX = (VID_W + 10) * t;
+					refOto = _GetVPointF(tX + x, y);
+
+					qp.setPen(QPen(QColor::fromRgb(0, 255, 255)));
+					qp.drawEllipse(refOto, 3.0f, 3.0f);
+				}
+				*/
+
+				for (int iM = 0; iM < otherTracker->vidFrameData[otherTracker->drawMarkerFrameIndex].newMarkers.size(); ++iM)
+				{
+					NewMarker* m = &otherTracker->vidFrameData[otherTracker->drawMarkerFrameIndex].newMarkers[iM];
+
+					{
+						QVector3D camPos = m->worldRayD + otherTracker->decoder->worldPos;
+
+						cv::Mat wp(4, 1, CV_64F);
+						wp.at<double>(0) = camPos.x();
+						wp.at<double>(1) = camPos.y();
+						wp.at<double>(2) = camPos.z();
+						wp.at<double>(3) = 1.0;
+
+						cv::Mat imgPt = tracker->decoder->projMat * wp;
+						float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+						float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+						float tX = (VID_W + 10) * t;
+						QPointF rayE = _GetVPointF(tX + x, y);
+
+						qp.setPen(QPen(QColor::fromRgb(255, 255, 0)));
+						qp.drawEllipse(rayE, 3.0f, 3.0f);
+						qp.drawLine(oto, rayE);
+					}
+
+					// Ref rays
+					/*
+					{
+						QVector3D camPos = m->refWorldRayD + otherTracker->decoder->refWorldPos;
+
+						cv::Mat wp(4, 1, CV_64F);
+						wp.at<double>(0) = camPos.x();
+						wp.at<double>(1) = camPos.y();
+						wp.at<double>(2) = camPos.z();
+						wp.at<double>(3) = 1.0;
+
+						cv::Mat imgPt = tracker->decoder->refP * wp;
+						float x = imgPt.at<double>(0) / imgPt.at<double>(2);
+						float y = imgPt.at<double>(1) / imgPt.at<double>(2);
+
+						float tX = (VID_W + 10) * t;
+						QPointF rayE = _GetVPointF(tX + x, y);
+
+						qp.setPen(QPen(QColor::fromRgb(0, 255, 255)));
+						qp.drawEllipse(rayE, 3.0f, 3.0f);
+						qp.drawLine(refOto, rayE);
+					}
+					*/
+				}
+			}
+		}
 
 		qp.setRenderHint(QPainter::Antialiasing, false);
 	}
