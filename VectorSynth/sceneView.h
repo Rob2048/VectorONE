@@ -50,7 +50,7 @@ public:
 	void tick();
 	void setPattern(float XFreq, float XMin, float XMax, float YFreq, float YMin, float YMax, float Speed);
 	void restartPattern();
-	void pushSamplePoint(QVector3D Pos);
+	void pushSamplePoint(QVector3D Pos, QVector3D Color);
 
 	QVector3D backColor;
 

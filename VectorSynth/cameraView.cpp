@@ -72,7 +72,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 		QImage img = QImage((uchar*)tracker->frameData, VID_W, VID_H, QImage::Format::Format_RGB888);
 		qp.drawImage(QPointF(tX + -0.5f, -0.5f), img);
 
-		QImage maskImg = QImage((uchar*)tracker->maskVisualData, 128, 88, QImage::Format::Format_RGBA8888);
+		QImage maskImg = QImage((uchar*)tracker->maskVisualData, 64, 44, QImage::Format::Format_RGBA8888);
 		qp.drawImage(QRectF(tX + -0.5f, -0.5f, VID_W, VID_H), maskImg);
 
 		if (!tracker->connected && !tracker->loaded)
@@ -97,52 +97,56 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				qp.setPen(QPen(QColor(100, 100, 100), 2.0f / viewZoom));
 		}
 
+		qp.setBrush(Qt::BrushStyle::NoBrush);
 		qp.drawRect(QRectF(tX - 0.5f, -0.5f, VID_W + 1.0, VID_H + 1.0));
+
+		qp.setPen(QPen(QColor(255, 100, 255), 1.0f / viewZoom));
 		
+		//_vt = qp.transform();
+		
+		
+		//qp.resetTransform();
+
+		qp.setRenderHint(QPainter::Antialiasing, true);
+
+		// NOTE: Realtime blobs.
+		if (tracker->markerDataSize > 0)
+		{
+			blobDataHeader* blobHeader = (blobDataHeader*)tracker->markerData;
+			blob* blobs = (blob*)(tracker->markerData + sizeof(blobDataHeader));
+
+			//qDebug() << blobCount << markerDataSize;
+
+			qp.setBrush(QBrush(QColor::fromRgb(255, 0, 255), Qt::BrushStyle::SolidPattern));
+			//qp.setBrush(QBrush(QColor::fromRgb(255, 255, 255), Qt::BrushStyle::SolidPattern));
+			qp.setPen(Qt::PenStyle::NoPen);
+
+			for (int i = 0; i < blobHeader->blobCount; ++i)
+			{
+				//qp.drawEllipse(_GetVPointF(tX + blobs[i].cX, blobs[i].cY), 2.0f, 2.0f);
+				qp.drawEllipse(QPointF(tX + blobs[i].cX, blobs[i].cY), 2.0f, 2.0f);
+			}
+		}
+
 		qp.resetTransform();
 
+		qp.setRenderHint(QPainter::Antialiasing, false);
+		
 		qp.setPen(QPen(QColor(200, 200, 200), 1.0f));
 		qp.setFont(_mainFont);
 		qp.drawText(_GetVPoint(tX, -5), tracker->name + " (0x" + QString::number(tracker->serial, 16) + ") " + QString::number(tracker->version) +  " - " + QString::number(tracker->fps) + "fps " + QString::number(tracker->dataRecv) + "kb");
+		
+		if (tracker->markerDataSize > 0)
+		{
+			blobDataHeader* blobHeader = (blobDataHeader*)tracker->markerData;
+			qp.drawText(_GetVPoint(tX, 10) + QPoint(0, 0), "Markers: " + QString::number(blobHeader->blobCount));
+			qp.drawText(_GetVPoint(tX, 10) + QPoint(0, 15), "Regions: " + QString::number(blobHeader->regionCount));
+			qp.drawText(_GetVPoint(tX, 10) + QPoint(0, 30), "Total time: " + QString::number(blobHeader->totalTime));
+		}
 
 		trackerCount++;
 	}
 
-	// NOTE: Realtime blobs.
-	if (mode == 3)
-	{
-		//qp.drawImage(QPointF(-0.5f, -0.5f), camImage);
-
-		qp.setPen(QPen(QColor(255, 100, 255), 1.0f / viewZoom));
-		qp.drawRect(0, 0, VID_W, VID_H);
-		qp.drawRect(VID_W + 10, 0, VID_W, VID_H);
-
-		_vt = qp.transform();
-		qp.resetTransform();
-
-		qp.setRenderHint(QPainter::Antialiasing, true);
-
-		/*
-		if (markerDataSize > 0)
-		{
-			int blobCount = *((int*)markerData);
-			blob* blobs = (blob*)(markerData + 4);
-
-			qDebug() << blobCount << markerDataSize;
-
-			qp.setBrush(QBrush(QColor::fromRgb(255, 0, 255), Qt::BrushStyle::SolidPattern));
-			qp.setPen(Qt::PenStyle::NoPen);
-
-			for (int i = 0; i < blobCount; ++i)
-			{
-				qp.drawEllipse(_GetVPointF(blobs[i].cX, blobs[i].cY), 2.0f, 2.0f);
-			}
-		}
-		*/
-
-		qp.setRenderHint(QPainter::Antialiasing, false);
-	}
-	
 	if (take)
 	{
 		qp.setFont(_detailFont);
@@ -184,7 +188,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 						{	
 							qp.setPen(Qt::PenStyle::NoPen);
 
-							NewMarker* m = &tracker->vidFrameData[fI].newMarkers[i];
+							Marker2D* m = &tracker->vidFrameData[fI].newMarkers[i];
 
 							// Distorted position
 							qp.setBrush(QBrush(QColor::fromRgb(255, 0, 255), Qt::BrushStyle::SolidPattern));
@@ -234,6 +238,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 			if (t == 0)
 				tX = (VID_W + 10);
 			
+			/*
 			// Draw epilines from camera pair onto camera image.
 			for (int i = 0; i < tracker->vidFrameData[tracker->drawMarkerFrameIndex].epiLines.count(); ++i)
 			{
@@ -247,6 +252,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 
 				qp.drawLine(_GetVPointF(tX - 200, y1), _GetVPointF(tX + 1224, y2));
 			}
+			*/
 
 			// Project 3D Markers onto camera image.
 			for (int m = 0; m < take->markers[timelineFrame].size(); ++m)
@@ -259,7 +265,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				wp.at<double>(2) = markerPos.z();
 				wp.at<double>(3) = 1.0;
 
-				cv::Mat imgPt = tracker->decoder->projMat * wp;
+				cv::Mat imgPt = tracker->projMat * wp;
 				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
@@ -279,7 +285,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				wp.at<double>(2) = markerPos.z();
 				wp.at<double>(3) = 1.0;
 
-				cv::Mat imgPt = tracker->decoder->projMat * wp;
+				cv::Mat imgPt = tracker->projMat * wp;
 				float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 				float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
@@ -348,7 +354,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				QPointF refOto;
 
 				{
-					QVector3D camPos = otherTracker->decoder->worldPos;
+					QVector3D camPos = otherTracker->worldPos;
 					
 					cv::Mat wp(4, 1, CV_64F);
 					wp.at<double>(0) = camPos.x();
@@ -356,7 +362,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 					wp.at<double>(2) = camPos.z();
 					wp.at<double>(3) = 1.0;
 
-					cv::Mat imgPt = tracker->decoder->projMat * wp;
+					cv::Mat imgPt = tracker->projMat * wp;
 					float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 					float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
@@ -392,10 +398,10 @@ void CameraView::paintEvent(QPaintEvent* Event)
 
 				for (int iM = 0; iM < otherTracker->vidFrameData[otherTracker->drawMarkerFrameIndex].newMarkers.size(); ++iM)
 				{
-					NewMarker* m = &otherTracker->vidFrameData[otherTracker->drawMarkerFrameIndex].newMarkers[iM];
+					Marker2D* m = &otherTracker->vidFrameData[otherTracker->drawMarkerFrameIndex].newMarkers[iM];
 
 					{
-						QVector3D camPos = m->worldRayD + otherTracker->decoder->worldPos;
+						QVector3D camPos = m->worldRayD + otherTracker->worldPos;
 
 						cv::Mat wp(4, 1, CV_64F);
 						wp.at<double>(0) = camPos.x();
@@ -403,7 +409,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 						wp.at<double>(2) = camPos.z();
 						wp.at<double>(3) = 1.0;
 
-						cv::Mat imgPt = tracker->decoder->projMat * wp;
+						cv::Mat imgPt = tracker->projMat * wp;
 						float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 						float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
@@ -465,23 +471,21 @@ void CameraView::mousePressEvent(QMouseEvent* Event)
 		if (tracker)
 		{
 			_mouseDownTrackerId = tracker->id;
-			int mX = trackerSpace.x() * 128;
-			int mY = trackerSpace.y() * 88;
+			int mX = trackerSpace.x() * 64;
+			int mY = trackerSpace.y() * 44;
 
-			if (tracker->interactMode == 1)
+			if (mX >= 0 && mX < 64 && mY >= 0 && mY < 44 && tracker->interactMode == 1)
 			{
 				if (tracker->getMask(mX, mY))
 				{
 					_editMaskMode = 1;
-					tracker->changeMask(mX, mY, false);
+					_ChangeMask(tracker, mX, mY, false);
 				}
 				else
 				{
 					_editMaskMode = 2;
-					tracker->changeMask(mX, mY, true);
+					_ChangeMask(tracker, mX, mY, true);
 				}
-
-				main->changeMask(tracker);
 			}
 		}
 
@@ -595,15 +599,16 @@ void CameraView::mouseMoveEvent(QMouseEvent* Event)
 		{
 			if (tracker->id == _mouseDownTrackerId)
 			{
-				int mX = trackerSpace.x() * 128;
-				int mY = trackerSpace.y() * 88;
+				int mX = trackerSpace.x() * 64;
+				int mY = trackerSpace.y() * 44;
 
-				if (tracker->interactMode == 1 && _editMaskMode == 1)
-					tracker->changeMask(mX, mY, false);
-				else if (tracker->interactMode == 1 && _editMaskMode == 2)
-					tracker->changeMask(mX, mY, true);
-
-				main->changeMask(tracker);
+				if (mX >= 0 && mX < 64 && mY >= 0 && mY < 44)
+				{
+					if (tracker->interactMode == 1 && _editMaskMode == 1)
+						_ChangeMask(tracker, mX, mY, false);
+					else if (tracker->interactMode == 1 && _editMaskMode == 2)
+						_ChangeMask(tracker, mX, mY, true);
+				}
 			}
 		}
 	}
@@ -628,6 +633,16 @@ void CameraView::mouseMoveEvent(QMouseEvent* Event)
 			hoveredId = newHoveredId;
 			update();
 		}
+	}
+}
+
+void CameraView::_ChangeMask(LiveTracker* Tracker, int X, int Y, bool Value)
+{
+	if (Tracker->getMask(X, Y) != Value)
+	{
+		Tracker->changeMask(X, Y, Value);
+		main->changeMask(Tracker);
+		update();
 	}
 }
 

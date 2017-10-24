@@ -26,7 +26,7 @@ public:
 	int				markerDataSize;
 	QElapsedTimer*	masterTimer;
 	FILE*			recordFile;
-	uint8_t			maskData[128 * 88];
+	uint8_t			maskData[64 * 44];
 
 	TrackerConnection(int Id, QTcpSocket* Socket, QElapsedTimer* MasterTimer, QObject* Parent);
 	~TrackerConnection();

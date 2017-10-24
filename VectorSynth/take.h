@@ -5,89 +5,24 @@
 #include <QDebug>
 #include "decoder.h"
 #include "liveTracker.h"
+#include "takeTracker.h"
 
 class SceneView;
+
+class MarkerCalib
+{
+public:
+
+	QVector3D pos;
+	int frame;
+};
 
 class Marker3D
 {
 public:
 
 	QVector3D pos;
-
-	// TODO: All cams that cams that can see marker.
-	NewMarker cam1marker;
-	NewMarker cam2marker;
-};
-
-class EpipolarLine
-{
-public:
-
-	int timelineFrame;
-	float a;
-	float b;
-	float c;
-
-	float a2;
-	float b2;
-	float c2;
-};
-
-class VidFrameData
-{
-public:
-
-	int type;
-	int time;
-	int index;
-	int size;
-	int bufferPosition;
-	//QList<QVector2D> markers;
-	QList<NewMarker> newMarkers;
-	
-	QList<EpipolarLine> epiLines;
-};
-
-class TakeTracker
-{
-public:
-
-	static TakeTracker* Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker);
-
-	LiveTracker*		liveTracker;
-	QString				takeName;
-	QString				name;
-	uint32_t			serial;
-	int					id;
-	QList<VidFrameData> vidFrameData;
-	int					vidPlaybackFrame;
-	Decoder*			decoder;
-	uint8_t*			takeClipData;
-	int					exposure;
-	int					fps;
-	int					iso;
-	float				threshold;
-	float				sensitivity;
-	uint8_t				mask[128 * 88];
-	
-	int					frameCount;
-	int					frameOffset;
-	//int					frameEndIndex;
-	int					currentFrameIndex;
-	int					drawMarkerFrameIndex;
-
-	TakeTracker();
-	~TakeTracker();
-
-	void DecodeFrame(int FrameIndex, int KeyFrameIndex);
-	void AdvanceFrame(int FrameCount);
-	void Save();
-	void Build2DMarkers(int StartFrame, int EndFrame);
-	void BuildEpilines(int StartFrame, int EndFrame);
-	void BuildRays(int StartFrame, int EndFrame);
-	bool ConvertTimelineToFrame(int TimelineFrame, int* KeyFrameIndex, int* FrameIndex);
-	void DrawMarkers(int FrameIndex);
-	VidFrameData* GetLocalFrame(int TimelineFrame);
+	QList<Marker2D> sources;
 };
 
 class Take
@@ -123,13 +58,15 @@ public:
 	void SetFrame(int TimelineFrame, bool DrawMarkers);
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void Build3DMarkers(int StartFrame, int EndFrame);
-	void BuildFundamental(int StartFrame, int EndFrame, SceneView* Scene);
+	void BuildExtrinsics(int StartFrame, int EndFrame);	
 	void SaveSSBAFile();
 
 private:
 
 	void _ReconfigureTimeline();
 	void _LoadTracker(QString TrackerFileName);
-	void _AdjustRuntime();
-	Marker3D _triangulate(NewMarker M1, NewMarker M2);
+	void _AdjustRuntime();	
+	Marker3D _triangulate(Marker2D M1, Marker2D M2);
+	void _ClosestPointsLines(QVector3D P1, QVector3D D1, QVector3D P2, QVector3D D2, QVector3D* C1, QVector3D* C2);
+	void _BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTracker* Tracker, std::vector<MarkerCalib>& Markers, cv::Mat& Pose);
 };

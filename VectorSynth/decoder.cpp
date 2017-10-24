@@ -18,38 +18,18 @@ Decoder::Decoder() :
 	_calibrating = false;
 	findCalibrationSheet = false;
 	drawUndistorted = false;
-	
 	_calibUndistortEnable = false;
-	_calibCameraMatrix = Mat::eye(3, 3, CV_64F);
-	_calibDistCoeffs = Mat::zeros(5, 1, CV_64F);
-	projMat = cv::Mat::eye(3, 4, CV_64F);
-	unitProjMat = cv::Mat::eye(3, 4, CV_64F);
-	fundamentalMat = cv::Mat(3, 3, CV_64F);
-
-	_calibDistCoeffs.at<double>(0) = -0.332945;
-	_calibDistCoeffs.at<double>(1) = 0.12465;
-	_calibDistCoeffs.at<double>(2) = 0.0020142;
-	_calibDistCoeffs.at<double>(3) = 0.000755178;
-	_calibDistCoeffs.at<double>(4) = -0.029228;
-
-	_calibCameraMatrix.at<double>(0, 0) = 734.553;
-	_calibCameraMatrix.at<double>(1, 0) = 0;
-	_calibCameraMatrix.at<double>(2, 0) = 0;
-	_calibCameraMatrix.at<double>(0, 1) = 0;
-	_calibCameraMatrix.at<double>(1, 1) = 735.274;
-	_calibCameraMatrix.at<double>(2, 1) = 0;
-	_calibCameraMatrix.at<double>(0, 2) = 476.426;
-	_calibCameraMatrix.at<double>(1, 2) = 403.402;
-	_calibCameraMatrix.at<double>(2, 2) = 1;
-	
-	CalculateOptMat();
-
 	_calibSquareSize = 25;
 	_calibFramesSince = 0;
-
 	newFrames = 0;
 	destWidth = VID_W * 1;
 	destHeight = VID_H * 1;
+
+	for (int i = 0; i < sizeof(frameMaskData); ++i)
+		frameMaskData[i] = 1;
+
+	colMat = Mat(VID_H, VID_W, CV_8UC3);
+	_initOpenCV();
 
 	avcodec_register_all();
 	pkt = av_packet_alloc();
@@ -101,12 +81,7 @@ Decoder::Decoder() :
 	//sws = sws_getContext(VID_W, VID_H, AV_PIX_FMT_YUV420P, destWidth, destHeight, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
 	sws = sws_getContext(VID_W, VID_H, AV_PIX_FMT_YUV420P, destWidth, destHeight, AV_PIX_FMT_GRAY8, 0, 0, 0, 0);
 
-	_initOpenCV();
 
-	for (int i = 0; i < sizeof(frameMaskData); ++i)
-		frameMaskData[i] = 1;
-
-	colMat = Mat(VID_H, VID_W, CV_8UC3);
 }
 
 Decoder::~Decoder()
@@ -136,116 +111,6 @@ void Decoder::_initOpenCV()
 	blobDetectorParams.thresholdStep = 100;
 
 	blobDetector = cv::SimpleBlobDetector::create(blobDetectorParams);
-}
-
-void Decoder::CalculateOptMat()
-{
-	//optCamMat = getOptimalNewCameraMatrix(_calibCameraMatrix, _calibDistCoeffs, Size(VID_W, VID_H), 0.0, Size(VID_W, VID_H), NULL, false);
-	optCamMat = getOptimalNewCameraMatrix(_calibCameraMatrix, _calibDistCoeffs, Size(VID_W, VID_H), 0.0, Size(VID_W, VID_H), NULL, true);
-
-	double fovX, fovY, focalLength, aspectRatio;
-	Point2d principalPoint;
-
-	// Full: 3280x2464 - binned: 1640x1232
-	// Mode 6 1280x720
-	// Final Res: 1024x704
-	// Sensor Space: 2000x1400
-	// 3296 x 2512 = 5.095mm x 4.930mm
-	// 3.092mm x 2.748mm
-	// 2.240, 1680
-	calibrationMatrixValues(_calibCameraMatrix, cv::Size(VID_W, VID_H), 3.092, 2.748, fovX, fovY, focalLength, principalPoint, aspectRatio);
-	//calibrationMatrixValues(_calibCameraMatrix, cv::Size(VID_W, VID_H), 2.240, 1.680, fovX, fovY, focalLength, principalPoint, aspectRatio);
-
-	//qDebug() << "Cam - Fov: " << fovX << "x" << fovY << " Fl:" << focalLength << " Aspect:" << aspectRatio << " PP:" << principalPoint.x << "," << principalPoint.y;
-
-	QVector4D hwPos = worldMat * QVector4D(0, 0, 0, 1);
-
-	worldPos.setX(hwPos.x() / hwPos.w());
-	worldPos.setY(hwPos.y() / hwPos.w());
-	worldPos.setZ(hwPos.z() / hwPos.w());
-}
-
-void Decoder::_detectMarkers()
-{
-	//cvFrame = Mat(Height, Width, CV_8UC1, Scalar::all(128));
-
-	// Blob detection.
-	std::vector<KeyPoint> keypoints;
-	blobDetector->detect(cvFrame, keypoints);
-
-	//rectangle(colMat, Rect(10, 10, 100, 200), Scalar(0, 0, 255), 3);	
-	//rectangle(cvFrame, Rect(10, 10, 100, 200), Scalar(0, 0, 255), 3);
-
-	//colMat = Mat(VID_H, VID_W, CV_8UC3);
-
-	//cv::Mat pointMat(keypoints.size(), 1, CV_32FC2);
-
-	if (keypoints.size() == 0)
-		return;
-
-	/*
-	for (int i = 0; i < keypoints.size(); ++i)
-	{
-		cv::Point2f fp = keypoints[i].pt;
-		cv::Point2i ip(fp.x, fp.y);
-
-		ip.x = ip.x << 8 | (int)((fp.x - ip.x) * 255.0f);
-		ip.y = ip.y << 8 | (int)((fp.y - ip.y) * 255.0f);
-
-		circle(colMat, ip, 3 << 8, Scalar(255, 128, 50), -1, CV_AA, 8);
-
-		char strBuf[256];
-		sprintf(strBuf, "%0.2f %0.2f %0.2f", keypoints[i].pt.x, keypoints[i].pt.y, keypoints[i].size);
-		putText(colMat, strBuf, Point(keypoints[i].pt.x + 5, keypoints[i].pt.y - 5), 0, 0.3, Scalar(255, 255, 255));
-	}
-	//*/
-
-	//*
-	cv::Mat_<cv::Point2f> matPoint(1, keypoints.size());
-
-	for (int i = 0; i < keypoints.size(); ++i)
-	{
-		matPoint(i) = keypoints[i].pt;
-	}
-
-	cv::Mat matOutPoints;
-
-	//cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
-	cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray());
-
-	qDebug() << CV_32FC3 << matOutPoints.type() << matOutPoints.size().width << matOutPoints.size().height;
-
-	for (int i = 0; i < matOutPoints.size().width; ++i)
-	{
-		//circle(colMat, matOutPoints.at<cv::Point2f>(i), 4.0f, Scalar(255, 128, 50), -1, 8);
-
-		cv::Point2f fp = matOutPoints.at<cv::Point2f>(i);
-		cv::Point2i ip(fp.x, fp.y);
-
-		ip.x = ip.x << 8 | (int)((fp.x - ip.x) * 255.0f);
-		ip.y = ip.y << 8 | (int)((fp.y - ip.y) * 255.0f);
-
-		circle(colMat, ip, 3 << 8, Scalar(255, 128, 50), -1, CV_AA, 8);
-	}
-	//*/
-	
-	//for (int k = 0; k < keypoints.size(); ++k)
-	//{
-		//circle(colMat, keypoints[k].pt, 4.0f, Scalar(255, 255, 255), -1, CV_AA);
-		/*
-		circle(colMat, keypoints[k].pt, keypoints[k].size * 0.5f + 4.0f, Scalar(255, 0, 0), 1, 8);
-		drawMarker(colMat, keypoints[k].pt, Scalar(255, 0, 255), cv::MarkerTypes::MARKER_CROSS, 40, 1);
-
-		char strBuf[256];
-		sprintf(strBuf, "%0.2f %0.2f %0.2f", keypoints[k].pt.x, keypoints[k].pt.y, keypoints[k].size);
-		putText(colMat, strBuf, Point(keypoints[k].pt.x + 5, keypoints[k].pt.y - 5), 0, 0.3, Scalar(255, 255, 255));
-		*/
-
-		//float s = keypoints[k].size;
-		//rectangle(colMat, Rect(keypoints[k].pt.x - s * 0.5f, keypoints[k].pt.y - s * 0.5f, s, s), Scalar(0, 0, 255), 1, 8);
-	//}
-	
-	//qDebug() << keypoints.size();
 }
 
 bool Decoder::DoDecode(uint8_t* Data, int Len)
@@ -434,7 +299,7 @@ void Decoder::ProcessFrameLive()
 
 	if (drawUndistorted)
 	{
-		_undistort();
+		//undistort(cvFrame, undistortMat, calibCameraMatrix, calibDistCoeffs, optCamMat);
 		cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
 	}
 	else
@@ -449,8 +314,8 @@ void Decoder::ProcessFrameLive()
 			qDebug() << "Calibrating!";
 			calibMutex.lock();
 			_calibrating = true;
-			_calibImageCount = 0;
-			_calibImagePoints.clear();
+			calibImageCount = 0;
+			calibImagePoints.clear();
 			calibMutex.unlock();
 		}
 
@@ -471,12 +336,12 @@ void Decoder::ProcessFrame()
 {
 	_CreateFrameGray();
 
-	undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs, optCamMat);
+	//undistort(cvFrame, undistortMat, calibCameraMatrix, calibDistCoeffs, optCamMat);
 	//undistort(cvFrame, undistortMat, refK, refD, refOptK);
-	cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
+	//cv::cvtColor(undistortMat, colMat, cv::COLOR_GRAY2RGB);
 
 	// No undistortion.
-	//cv::cvtColor(cvFrame, colMat, cv::COLOR_GRAY2RGB);
+	cv::cvtColor(cvFrame, colMat, cv::COLOR_GRAY2RGB);
 
 	/*
 	std::vector<Point3f> worldPoints;
@@ -497,56 +362,6 @@ void Decoder::ProcessFrame()
 	return;
 }
 
-QList<QVector2D> Decoder::ProcessFrameMarkers()
-{	
-	QList<QVector2D> markers;
-
-	if (blankFrame)
-		return markers;
-
-	_CreateFrameGray();
-
-	QElapsedTimer t;
-	t.start();
-	// Blob detection.
-	std::vector<KeyPoint> keypoints;
-	blobDetector->detect(cvFrame, keypoints);
-
-	qDebug() << "CV:" << ((t.nsecsElapsed() / 1000) / 1000.0) << "ms";
-	
-	if (keypoints.size() == 0)
-		return markers;
-
-	markers.reserve(keypoints.size());
-
-	for (int i = 0; i < keypoints.size(); ++i)
-	{
-		markers.push_back(QVector2D(keypoints[i].pt.x, keypoints[i].pt.y));
-	}
-
-	/*
-	cv::Mat_<cv::Point2f> matPoint(1, keypoints.size());
-
-	for (int i = 0; i < keypoints.size(); ++i)
-	{
-		matPoint(i) = keypoints[i].pt;
-	}
-
-	cv::Mat matOutPoints;
-	cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
-
-	for (int i = 0; i < matOutPoints.size().width; ++i)
-	{
-		Point2f p = matOutPoints.at<cv::Point2f>(i);
-
-		if (p.x >= 0 & p.x < VID_W && p.y >= 0 && p.y < VID_H)
-		markers.push_back(QVector2D(p.x, p.y));
-	}
-	*/
-
-	return markers;
-}
-
 struct blob
 {
 	float minX;
@@ -560,9 +375,9 @@ float distSq(float X1, float Y1, float X2, float Y2)
 	return (X2 - X1) * (X2 - X1) + (Y2 - Y1) * (Y2 - Y1);
 }
 
-QList<NewMarker> Decoder::ProcessFrameNewMarkers()
+QList<Marker2D> Decoder::ProcessFrameNewMarkers()
 {
-	QList<NewMarker> markers;
+	QList<Marker2D> markers;
 
 	if (blankFrame)
 		return markers;
@@ -636,7 +451,7 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 		if (blobs[i].maxX - blobs[i].minX < 2 || blobs[i].maxY - blobs[i].minY < 2)
 			continue;
 
-		NewMarker m = {};
+		Marker2D m = {};
 		m.pos = QVector2D((blobs[i].maxX - blobs[i].minX) * 0.5f + blobs[i].minX, (blobs[i].maxY - blobs[i].minY) * 0.5f + blobs[i].minY);
 		m.bounds = QVector4D(blobs[i].minX, blobs[i].minY, blobs[i].maxX, blobs[i].maxY);
 
@@ -673,25 +488,7 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 		markers.push_back(m);
 	}
 
-	// Blob detection.
 	/*
-	std::vector<KeyPoint> keypoints;
-	blobDetector->detect(cvFrame, keypoints);
-	
-	if (keypoints.size() == 0)
-		return markers;
-
-	markers.reserve(keypoints.size());
-
-	for (int i = 0; i < keypoints.size(); ++i)
-	{
-		NewMarker m = {};
-		m.pos = QVector2D(keypoints[i].pt.x, keypoints[i].pt.y);
-		markers.push_back(m);
-	}
-	*/
-
-	//*
 	// Undistort markers with default mats.
 	if (markers.size() > 0)
 	{
@@ -700,7 +497,8 @@ QList<NewMarker> Decoder::ProcessFrameNewMarkers()
 			matPoint(i) = Point2f(markers[i].distPos.x(), markers[i].distPos.y());
 
 		cv::Mat matOutPoints;
-		cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
+		//cv::undistortPoints(matPoint, matOutPoints, _calibCameraMatrix, _calibDistCoeffs, cv::noArray(), optCamMat);
+		cv::undistortPoints(matPoint, matOutPoints, optCamMat, calibDistCoeffs, cv::noArray(), optCamMat);
 
 		//markers.clear();
 
@@ -795,8 +593,8 @@ void Decoder::_detectValibSheet()
 	if (findChessboardCorners(cvFrame, _calibBoardSize, pointBuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE))
 	{
 		cornerSubPix(cvFrame, pointBuf, Size(11, 11), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-		_calibImagePoints.push_back(pointBuf);
-		++_calibImageCount;
+		calibImagePoints.push_back(pointBuf);
+		++calibImageCount;
 
 		drawChessboardCorners(colMat, _calibBoardSize, Mat(pointBuf), true);
 	}
@@ -804,13 +602,6 @@ void Decoder::_detectValibSheet()
 	{
 		//std::cout << "No Board Found!\n";
 	}
-}
-
-void Decoder::_undistort()
-{
-	//cvFrame = umat.clone(); Mat umat;
-	//undistort(cvFrame, undistortMat, _calibCameraMatrix, _calibDistCoeffs, optCamMat);
-	undistort(cvFrame, undistortMat, refK, refD, refOptK);
 }
 
 void Decoder::_findCalibrationSheet()
@@ -838,8 +629,8 @@ void Decoder::_findCalibrationSheet()
 
 	if (found)
 	{
-		_calibImagePoints.push_back(pointBuf);
-		++_calibImageCount;
+		calibImagePoints.push_back(pointBuf);
+		++calibImageCount;
 		drawChessboardCorners(colMat, Size(4, 11), Mat(pointBuf), found);
 	}
 	else

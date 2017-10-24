@@ -4,6 +4,8 @@ void ServerThreadWorker::OnStart()
 {
 	qDebug() << "Starting Server Thread Worker" << QThread::currentThreadId();
 
+	masterTimer.start();
+
 	_tcpServer = new QTcpServer(this);
 	connect(_tcpServer, &QTcpServer::newConnection, this, &ServerThreadWorker::OnTcpServerConnectionAvailable);
 	_tcpServer->listen(QHostAddress::Any, 8000);
@@ -43,6 +45,7 @@ void ServerThreadWorker::OnTcpServerConnectionAvailable()
 	{
 		_connectionMutex.lock();
 		qDebug() << "New TCP Client" << QThread::currentThreadId();
+		tcpSocket->setReadBufferSize(1024 * 1024);
 		TrackerConnection* nc = new TrackerConnection(++_nextConnectionId, tcpSocket, &masterTimer, this);
 		_connections[_nextConnectionId] = nc;
 		connect(nc, &TrackerConnection::OnNewFrame, this, &ServerThreadWorker::OnNewFrame);
@@ -88,7 +91,21 @@ void ServerThreadWorker::OnMaskChange(int ClientId, QByteArray Data)
 
 	if (tracker)
 	{
-		memcpy(tracker->maskData, Data.data(), 128 * 88);
+		memcpy(tracker->maskData, Data.data(), sizeof(tracker->maskData));
+
+		char asciiMask[64 * 44];
+
+		for (int i = 0; i < 64 * 44; ++i)
+		{
+			asciiMask[i] = tracker->maskData[i] + '0';
+		}
+
+		//QByteArray mask((char*)tracker->maskData, sizeof(tracker->maskData));
+
+		QString cmd = QString("sm,") + QString::fromLatin1(asciiMask, sizeof(tracker->maskData)) + QString("\n");
+		QByteArray data(cmd.toLatin1());
+
+		tracker->socket->write(data);
 	}
 }
 
@@ -144,14 +161,14 @@ void ServerThreadWorker::OnFindCalibChanged(int State)
 
 void ServerThreadWorker::InternalSync1()
 {
-	_connections[1]->socket->write("ts\n");
-	masterTimer.start();
+	//_connections[1]->socket->write("ts\n");
+	//masterTimer.start();
 }
 
 void ServerThreadWorker::OnStartTimeSync()
 {
-	_StopAllTrackerCams();
-	QTimer::singleShot(500, this, SLOT(InternalSync1()));
+	//_StopAllTrackerCams();
+	//QTimer::singleShot(500, this, SLOT(InternalSync1()));
 }
 
 void ServerThreadWorker::OnViewFeed(int ClientId, bool Image)
@@ -164,15 +181,20 @@ void ServerThreadWorker::OnViewFeed(int ClientId, bool Image)
 	{
 		if (Image)
 		{
-			//tracker->socket->write("cm,1\n");
+			tracker->socket->write("cm,0\n");
 			tracker->socket->write("sc\n");
 			tracker->streaming = true;
 		}
 		else
 		{
+			tracker->socket->write("cm,1\n");
+			tracker->socket->write("sc\n");
+			tracker->streaming = true;
+			/*
 			tracker->socket->write("ec\n");
 			tracker->streaming = false;
 			tracker->recording = false;
+			*/
 		}
 	}
 }

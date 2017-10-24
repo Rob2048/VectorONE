@@ -31,6 +31,7 @@ SOURCES += main.cpp \
         decoder.cpp \
         tracker.cpp \
         take.cpp \
+        takeTracker.cpp \
         timelineWidget.cpp \
         objLoader.cpp \
         trackerConnection.cpp \
@@ -43,6 +44,7 @@ HEADERS  += mainwindow.h \
 			decoder.h \
 			tracker.h \
 			take.h \
+			takeTracker.h \
 			timelineWidget.h \
 			objLoader.h \
 			trackerConnection.h \
@@ -63,7 +65,8 @@ CONFIG(debug, debug|release) {
 			-lavutil \
 			-lpostproc \
 			-lswresample \
-			-lswscale
+			-lswscale \
+			-lws2_32
 }
 else {
 	LIBS += -L$(OPENCV_DIR)/x64/vc14/lib \
@@ -76,7 +79,8 @@ else {
 			-lavutil \
 			-lpostproc \
 			-lswresample \
-			-lswscale
+			-lswscale \
+			-lws2_32
 }
 
 INCLUDEPATH += "$(OPENCV_DIR)/include" \

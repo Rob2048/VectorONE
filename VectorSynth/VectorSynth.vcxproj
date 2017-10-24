@@ -76,7 +76,7 @@
       <WarningLevel>Level3</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>E:\Qt\5.8\msvc2015_64\lib\qtmain.lib;shell32.lib;$(OPENCV_DIR)\x64\vc14\lib\opencv_world320.lib;E:\ffmpeg\lib\avcodec.lib;E:\ffmpeg\lib\avdevice.lib;E:\ffmpeg\lib\avfilter.lib;E:\ffmpeg\lib\avformat.lib;E:\ffmpeg\lib\avutil.lib;E:\ffmpeg\lib\postproc.lib;E:\ffmpeg\lib\swresample.lib;E:\ffmpeg\lib\swscale.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Widgets.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Gui.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Network.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>E:\Qt\5.8\msvc2015_64\lib\qtmain.lib;shell32.lib;$(OPENCV_DIR)\x64\vc14\lib\opencv_world320.lib;E:\ffmpeg\lib\avcodec.lib;E:\ffmpeg\lib\avdevice.lib;E:\ffmpeg\lib\avfilter.lib;E:\ffmpeg\lib\avformat.lib;E:\ffmpeg\lib\avutil.lib;E:\ffmpeg\lib\postproc.lib;E:\ffmpeg\lib\swresample.lib;E:\ffmpeg\lib\swscale.lib;ws2_32.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Widgets.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Gui.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Network.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>E:\Qt\5.8\msvc2015_64\lib;C:\utils\my_sql\my_sql\lib;C:\utils\postgresql\pgsql\lib;$(OPENCV_DIR)\x64\vc14\lib;E:\ffmpeg\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>"/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' publicKeyToken='6595b64144ccf1df' language='*' processorArchitecture='*'" %(AdditionalOptions)</AdditionalOptions>
       <DataExecutionPrevention>true</DataExecutionPrevention>
@@ -117,7 +117,7 @@
       <WarningLevel>Level3</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>E:\Qt\5.8\msvc2015_64\lib\qtmaind.lib;shell32.lib;$(OPENCV_DIR)\x64\vc14\lib\opencv_world320d.lib;E:\ffmpeg\lib\avcodec.lib;E:\ffmpeg\lib\avdevice.lib;E:\ffmpeg\lib\avfilter.lib;E:\ffmpeg\lib\avformat.lib;E:\ffmpeg\lib\avutil.lib;E:\ffmpeg\lib\postproc.lib;E:\ffmpeg\lib\swresample.lib;E:\ffmpeg\lib\swscale.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Widgetsd.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Guid.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Networkd.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>E:\Qt\5.8\msvc2015_64\lib\qtmaind.lib;shell32.lib;$(OPENCV_DIR)\x64\vc14\lib\opencv_world320d.lib;E:\ffmpeg\lib\avcodec.lib;E:\ffmpeg\lib\avdevice.lib;E:\ffmpeg\lib\avfilter.lib;E:\ffmpeg\lib\avformat.lib;E:\ffmpeg\lib\avutil.lib;E:\ffmpeg\lib\postproc.lib;E:\ffmpeg\lib\swresample.lib;E:\ffmpeg\lib\swscale.lib;ws2_32.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Widgetsd.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Guid.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Networkd.lib;E:\Qt\5.8\msvc2015_64\lib\Qt5Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>E:\Qt\5.8\msvc2015_64\lib;C:\utils\my_sql\my_sql\lib;C:\utils\postgresql\pgsql\lib;$(OPENCV_DIR)\x64\vc14\lib;E:\ffmpeg\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>"/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' publicKeyToken='6595b64144ccf1df' language='*' processorArchitecture='*'" %(AdditionalOptions)</AdditionalOptions>
       <DataExecutionPrevention>true</DataExecutionPrevention>
@@ -147,6 +147,7 @@
     <ClCompile Include="sceneView.cpp" />
     <ClCompile Include="serverThreadWorker.cpp" />
     <ClCompile Include="take.cpp" />
+    <ClCompile Include="takeTracker.cpp" />
     <ClCompile Include="timelineWidget.cpp" />
     <ClCompile Include="tracker.cpp" />
     <ClCompile Include="trackerConnection.cpp" />
@@ -187,6 +188,7 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">debug\moc_serverThreadWorker.cpp;%(Outputs)</Outputs>
     </CustomBuild>
     <ClInclude Include="take.h" />
+    <ClInclude Include="takeTracker.h" />
     <CustomBuild Include="timelineWidget.h">
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">timelineWidget.h;release\moc_predefs.h;E:\Qt\5.8\msvc2015_64\bin\moc.exe;%(AdditionalInputs)</AdditionalInputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Qt\5.8\msvc2015_64\bin\moc.exe  -DUNICODE -DWIN32 -DWIN64 -DQT_DEPRECATED_WARNINGS -DQT_NO_DEBUG -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB --compiler-flavor=msvc --include release/moc_predefs.h -IE:/Qt/5.8/msvc2015_64/mkspecs/win32-msvc2015 -IE:/Projects/VectorONE/VectorSynth -I"E:/Projects/VectorONE/VectorSynth/$(OPENCV_DIR)/include" -IE:/ffmpeg/include -IE:/Qt/5.8/msvc2015_64/include -IE:/Qt/5.8/msvc2015_64/include/QtWidgets -IE:/Qt/5.8/msvc2015_64/include/QtGui -IE:/Qt/5.8/msvc2015_64/include/QtANGLE -IE:/Qt/5.8/msvc2015_64/include/QtNetwork -IE:/Qt/5.8/msvc2015_64/include/QtCore -I"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\Windows Kits\10\include\10.0.10240.0\ucrt" -I"C:\Program Files (x86)\Windows Kits\NETFXSDK\4.6.1\include\um" -I"C:\Program Files (x86)\Windows Kits\8.1\include\\shared" -I"C:\Program Files (x86)\Windows Kits\8.1\include\\um" -I"C:\Program Files (x86)\Windows Kits\8.1\include\\winrt" timelineWidget.h -o release\moc_timelineWidget.cpp</Command>

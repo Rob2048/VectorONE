@@ -64,6 +64,9 @@
     <ClCompile Include="take.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="takeTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="timelineWidget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -97,6 +100,9 @@
       <Filter>Header Files</Filter>
     </CustomBuild>
     <ClInclude Include="take.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="takeTracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <CustomBuild Include="timelineWidget.h">

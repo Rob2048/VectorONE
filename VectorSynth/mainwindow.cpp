@@ -284,8 +284,6 @@ void MainWindow::OnPlayTimerTick()
 	float frameAdvance = (100.0f / 60.0f) * ui->txtPlaySpeed->text().toFloat();
 	_playFrame += frameAdvance;
 
-	qDebug() << "Tick " << _playFrame;
-
 	if ((int)_playFrame >= _timeline->totalFrames)
 	{
 		_playTimer->stop();
@@ -340,7 +338,7 @@ void MainWindow::OnTimelineTimerTick()
 
 void MainWindow::changeMask(LiveTracker* Tracker)
 {
-	QByteArray data((char*)Tracker->maskData, 128 * 88);
+	QByteArray data((char*)Tracker->maskData, sizeof(Tracker->maskData));
 
 	emit OnMaskChange(Tracker->id, data);
 }
@@ -436,13 +434,22 @@ void MainWindow::OnTrackerInfoUpdate(int TrackerId)
 
 void MainWindow::OnTrackerMarkersFrame(int TrackerId)
 {
-	/*
-	Tracker->bufferMutex.lock();
+	TrackerConnection* tracker = _serverWorker->LockConnection(TrackerId);
 
-	memcpy(_cameraView->markerData, Tracker->markerData, Tracker->markerDataSize);
-	_cameraView->markerDataSize = Tracker->markerDataSize;
-	Tracker->bufferMutex.unlock();
-	*/
+	if (!tracker)
+		return;
+
+	LiveTracker* live = _liveTrackers[tracker->id];
+	memcpy(live->markerData, tracker->markerData, tracker->markerDataSize);
+	live->markerDataSize = tracker->markerDataSize;
+	live->frames += tracker->decoder->newFrames;
+	tracker->decoder->newFrames = 0;
+	live->data += tracker->decoder->dataRecvBytes;
+	tracker->decoder->dataRecvBytes = 0;
+	
+	_serverWorker->UnlockConnection(tracker);
+
+	_cameraView->update();
 }
 
 void MainWindow::OnStartTimeSyncClick()
@@ -532,7 +539,7 @@ void MainWindow::OnTimerTick()
 {	
 	QByteArray broadcastMsg = (QString("KineticSynth:") + _localIp.toString()).toUtf8();
 	_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress::Broadcast, 45454);
-	qDebug() << broadcastMsg;
+	//qDebug() << broadcastMsg;
 
 	for (std::map<int, LiveTracker*>::iterator it = _liveTrackers.begin(); it != _liveTrackers.end(); ++it)
 	{
@@ -685,7 +692,7 @@ void MainWindow::OnBuildFundamentalMatClicked()
 {
 	if (_take)
 	{
-		_take->BuildFundamental(_timeline->rangeStartFrame, _timeline->rangeEndFrame, _glView);
+		_take->BuildExtrinsics(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
 	}
 }
 

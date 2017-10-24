@@ -43,8 +43,10 @@ public:
 	int			interactMode;
 
 	uint8_t		frameData[VID_W * VID_H * 3];
-	MaskElement	maskVisualData[128 * 88];
-	uint8_t		maskData[128 * 88];
+	MaskElement	maskVisualData[64 * 44];
+	uint8_t		maskData[64 * 44];
+	uint8_t		markerData[1024 * 10];
+	int			markerDataSize;
 
 	void updateStats();
 

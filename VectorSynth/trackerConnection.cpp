@@ -76,8 +76,12 @@ void TrackerConnection::OnTcpSocketReadyRead()
 {
 	while (true)
 	{
+		// NOTE: socket seems to only buffer 1448 (Single IP packet?) bytes. Must clear before more data comes through.
+
 		if (socket->bytesAvailable() == 0)
 			break;
+
+		//qDebug() << "Bytes" << socket->bytesAvailable() << _recvPacketId;
 
 		if (_recvState == 0)
 		{
@@ -126,6 +130,8 @@ void TrackerConnection::OnTcpSocketReadyRead()
 				socket->read((char*)_recvBuffer, 12);
 				_recvFrameSize = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
 
+				qDebug() << "Img frame size:" << _recvFrameSize;
+
 				int frameType = _recvBuffer[7] << 24 | _recvBuffer[6] << 16 | _recvBuffer[5] << 8 | _recvBuffer[4];
 				int frameTime = _recvBuffer[11] << 24 | _recvBuffer[10] << 16 | _recvBuffer[9] << 8 | _recvBuffer[8];
 
@@ -140,7 +146,7 @@ void TrackerConnection::OnTcpSocketReadyRead()
 		}
 		else if (_recvPacketId == 4)
 		{
-			if (socket->bytesAvailable() >= 4)
+			if (socket->bytesAvailable() >= 8)
 			{
 				socket->read((char*)_recvBuffer, 8);
 				version = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
@@ -155,11 +161,13 @@ void TrackerConnection::OnTcpSocketReadyRead()
 		}
 		else if (_recvPacketId == 5)
 		{
+			// NOTE: Realtime blob packet header.
+
 			if (socket->bytesAvailable() >= 4)
 			{
 				socket->read((char*)_recvBuffer, 4);
 				_recvFrameSize = _recvFrameSize = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				qDebug() << "Got" << _recvFrameSize;
+				//qDebug() << "Frame Size:" << _recvFrameSize;
 
 				if (recording)
 				{
@@ -168,10 +176,32 @@ void TrackerConnection::OnTcpSocketReadyRead()
 
 				_recvState = 3;
 				_recvPacketId = 0;
+				_recvLength = 0;
+			}
+		}
+		else if (_recvPacketId == 52)
+		{
+			if (socket->bytesAvailable() >= 8)
+			{
+				int64_t masterTime = masterTimer->nsecsElapsed() / 1000;
+				socket->read((char*)_recvBuffer, 8);				
+				int64_t localTime  = _recvBuffer[7] << 56 | _recvBuffer[6] << 48 | _recvBuffer[5] << 40 | _recvBuffer[4] << 32 |
+									_recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
+				
+				QString cmd = "hb," + QString::number(localTime) + "," + QString::number(masterTime) + "\n";
+				QByteArray packet(cmd.toLatin1());
+				socket->write(packet);
+
+				//qDebug() << "Got ping " << localTime << masterTime << (localTime - masterTime);
+				qDebug() << localTime << masterTime << (localTime - masterTime);
+
+				_recvState = 0;
 			}
 		}
 		else if (_recvState == 2)
 		{
+			// NOTE: Recv realtime image stream.
+
 			int readBytes = socket->read((char*)_recvBuffer, _recvFrameSize);
 			_recvFrameSize -= readBytes;
 
@@ -196,28 +226,37 @@ void TrackerConnection::OnTcpSocketReadyRead()
 		}
 		else if (_recvState == 3)
 		{
-			qDebug() << "Test Avail" << socket->bytesAvailable();
-			if (socket->bytesAvailable() >= _recvFrameSize)
+			// NOTE: Recv realtime blob stream.
+
+			//qDebug() << "Test Avail" << socket->bytesAvailable();
+			if (socket->bytesAvailable() > 0 && _recvLength < _recvFrameSize)
 			{
-				qDebug() << "Avail" << _recvFrameSize;
-				int readBytes = socket->read((char*)_recvBuffer, _recvFrameSize);
+				int readBytes = socket->read((char*)_recvBuffer + _recvLength, _recvFrameSize - _recvLength);
+				_recvLength += readBytes;
 
-				if (recording)
-				{
-					//RecordData(_recvBuffer, readBytes);
-				}
-				else if (streaming)
-				{
-					Lock();
-					memcpy(markerData, _recvBuffer, _recvFrameSize);
-					qDebug() << "R" << _recvBuffer[0] << _recvBuffer[1] << _recvBuffer[2] << _recvBuffer[3];
-					markerDataSize = _recvFrameSize;
-					Unlock();
-					
-					emit OnNewMarkersFrame(this);
-				}
+				//qDebug() << "Total" << _recvLength << "/" << _recvFrameSize;
 
-				_recvState = 0;
+				if (_recvLength == _recvFrameSize)
+				{
+					++decoder->newFrames;
+					decoder->dataRecvBytes += _recvFrameSize;
+
+					if (recording)
+					{
+						//RecordData(_recvBuffer, readBytes);
+					}
+					else if (streaming)
+					{
+						Lock();
+						memcpy(markerData, _recvBuffer, _recvFrameSize);
+						markerDataSize = _recvFrameSize;
+						Unlock();
+
+						emit OnNewMarkersFrame(this);
+					}
+
+					_recvState = 0;
+				}
 			}
 		}
 	}

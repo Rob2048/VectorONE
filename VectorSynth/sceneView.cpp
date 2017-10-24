@@ -69,7 +69,7 @@ void SceneView::gizmoPush(VertexData Vert)
 	_gizmoData[_gizmoIndex++] = Vert;
 }
 
-void SceneView::pushSamplePoint(QVector3D Pos)
+void SceneView::pushSamplePoint(QVector3D Pos, QVector3D Color)
 {
 	/*
 	// Shift all the points
@@ -89,7 +89,7 @@ void SceneView::pushSamplePoint(QVector3D Pos)
 	*/
 
 	_scanData[_scanCurrentMaxPoints].position = Pos;
-	_scanData[_scanCurrentMaxPoints].color = QVector3D(1, 1, 1);
+	_scanData[_scanCurrentMaxPoints].color = Color;
 	++_scanCurrentMaxPoints;
 }
 
@@ -450,7 +450,7 @@ void SceneView::paintGL()
 
 					if (fI == timelineFrame)
 					{
-						markerMat.scale(0.015f);
+						markerMat.scale(0.004f);
 						_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 
 						if (_selectedIdx != i)
@@ -460,7 +460,7 @@ void SceneView::paintGL()
 					}
 					else
 					{
-						markerMat.scale(0.004f);
+						markerMat.scale(0.001f);
 						_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 						_minimalShader.setUniformValue("u_color", QVector4D(0.5f, 0.5f, 0.5f, 1));
 					}
@@ -474,7 +474,8 @@ void SceneView::paintGL()
 					QVector3D markerPos = (_pointWorldMat * QVector4D(rm.x(), rm.y(), rm.z(), 1.0f)).toVector3DAffine();
 					QMatrix4x4 markerMat;
 					markerMat.translate(markerPos);
-					markerMat.scale(0.015f);
+					//markerMat.scale(0.015f);
+					markerMat.scale(0.004f);
 					_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 					_minimalShader.setUniformValue("u_color", QVector4D(1, 0, 1, 1));
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
@@ -487,7 +488,8 @@ void SceneView::paintGL()
 					QVector3D markerPos = (_pointWorldMat * QVector4D(rm.x(), rm.y(), rm.z(), 1.0f)).toVector3DAffine();
 					QMatrix4x4 markerMat;
 					markerMat.translate(markerPos);
-					markerMat.scale(0.015f);
+					//markerMat.scale(0.015f);
+					markerMat.scale(0.004f);
 					_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 					_minimalShader.setUniformValue("u_color", QVector4D(0, 0, 1, 1));
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
@@ -577,13 +579,13 @@ void SceneView::paintGL()
 
 			for (int mIdx = 0; mIdx < t->vidFrameData[localTrackerFrame].newMarkers.size(); ++mIdx)
 			{
-				NewMarker* m = &t->vidFrameData[localTrackerFrame].newMarkers[mIdx];
+				Marker2D* m = &t->vidFrameData[localTrackerFrame].newMarkers[mIdx];
 
-				gizmoPush({ t->decoder->worldPos ,{ 1, 0, 1 } });
-				gizmoPush({ t->decoder->worldPos + m->worldRayD, { 1, 0, 1 } });
+				gizmoPush({ t->worldPos ,{ 1, 0, 1 } });
+				gizmoPush({ t->worldPos + m->worldRayD, { 1, 0, 1 } });
 
-				gizmoPush({ t->decoder->refWorldPos ,{ 0, 1, 1 } });
-				gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
+				//gizmoPush({ t->decoder->refWorldPos ,{ 0, 1, 1 } });
+				//gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
 			}
 		}
 	}
@@ -659,7 +661,7 @@ void SceneView::paintGL()
 			QVector3D ec(1, 1, 1);
 			float fld = 0.1f;
 
-			cv::Matx33d m33((double*)take->trackers[i]->decoder->optCamMat.ptr());
+			cv::Matx33d m33((double*)take->trackers[i]->camMatOpt.ptr());
 			//cv::Matx33d m33((double*)take->trackers[0]->decoder->_calibCameraMatrix.ptr());
 			cv::Matx33d m33Inv = m33.inv();
 
@@ -721,13 +723,13 @@ void SceneView::paintGL()
 			}
 			*/
 
-			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->worldMat);
+			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->worldMat);
 			_gizmoBuffer.write(0, _gizmoData, _gizmoIndex * sizeof(VertexData));
 			glDrawArrays(GL_LINES, 0, _gizmoIndex);
 
 			//_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * (take->trackers[0]->decoder->refWorldMat.inverted() * take->trackers[i]->decoder->refWorldMat));
-			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->refWorldMat);
-			glDrawArrays(GL_LINES, 0, _gizmoIndex);
+			//_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->refWorldMat);
+			//glDrawArrays(GL_LINES, 0, _gizmoIndex);
 		}
 
 		// Draw marker rays closest intersection line.

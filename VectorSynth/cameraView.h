@@ -19,6 +19,13 @@ struct blob
 	float cY;
 };
 
+struct blobDataHeader
+{
+	int blobCount;
+	int regionCount;
+	int totalTime;
+};
+
 class CameraView : public QWidget
 {
 	Q_OBJECT
@@ -72,4 +79,6 @@ private:
 
 	LiveTracker* _GetTracker(int X, int Y, QVector2D* TrackerSpace = 0);
 	void _DeselectTrackers();
+
+	void _ChangeMask(LiveTracker* Tracker, int X, int Y, bool Value);
 };
