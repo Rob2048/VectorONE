@@ -97,7 +97,6 @@ MainWindow::MainWindow(QWidget* parent) :
 	
 	connect(this, &MainWindow::OnServerStart, _serverWorker, &ServerThreadWorker::OnStart);
 	connect(this, &MainWindow::OnSendData, _serverWorker, &ServerThreadWorker::OnSendData);
-	connect(this, &MainWindow::OnStartTimeSync, _serverWorker, &ServerThreadWorker::OnStartTimeSync);
 	connect(this, &MainWindow::OnStartRecording, _serverWorker, &ServerThreadWorker::OnStartRecording);
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
 	connect(this, &MainWindow::OnStopCalibrating, _serverWorker, &ServerThreadWorker::OnStopCalibrating);
@@ -110,7 +109,6 @@ MainWindow::MainWindow(QWidget* parent) :
 	// Buttons.
 	connect(ui->btnStartCalibration, &QPushButton::clicked, this, &MainWindow::OnCalibrationStartClick);
 	connect(ui->btnStopCalibration, &QPushButton::clicked, this, &MainWindow::OnCalibrationStopClick);
-	connect(ui->btnSyncTime, &QPushButton::clicked, this, &MainWindow::OnStartTimeSyncClick);
 	connect(ui->btnStartRecording, &QPushButton::clicked, this, &MainWindow::OnStartRecordingClick);
 	connect(ui->btnLoadTake, &QPushButton::clicked, this, &MainWindow::OnLoadTakeClick);
 	connect(ui->btnSaveTake, &QPushButton::clicked, this, &MainWindow::OnSaveTakeClick);
@@ -235,7 +233,7 @@ void MainWindow::OnTimelineChange(int Value)
 {
 	_timelineRequestedFrame = Value;
 
-	int fps = 100;
+	int fps = 50;
 	int min = Value / fps / 60;
 	int sec = (Value / fps) % 60;
 	int frame = Value % fps;
@@ -409,6 +407,8 @@ void MainWindow::OnTrackerFrame(int TrackerId)
 	tracker->decoder->newFrames = 0;
 	live->data += tracker->decoder->dataRecvBytes;
 	tracker->decoder->dataRecvBytes = 0;
+	live->avgMasterOffset = tracker->avgMasterOffset;
+	live->latestFrameId = tracker->latestFrameId;
 
 	_serverWorker->UnlockConnection(tracker);
 
@@ -426,6 +426,7 @@ void MainWindow::OnTrackerInfoUpdate(int TrackerId)
 	live->serial = tracker->serial;
 	live->version = tracker->version;
 	live->name = tracker->name;
+	live->setMask(tracker->maskData);
 
 	_serverWorker->UnlockConnection(tracker);
 
@@ -446,18 +447,12 @@ void MainWindow::OnTrackerMarkersFrame(int TrackerId)
 	tracker->decoder->newFrames = 0;
 	live->data += tracker->decoder->dataRecvBytes;
 	tracker->decoder->dataRecvBytes = 0;
+	live->avgMasterOffset = tracker->avgMasterOffset;
+	live->latestFrameId = tracker->latestFrameId;
 	
 	_serverWorker->UnlockConnection(tracker);
 
 	_cameraView->update();
-}
-
-void MainWindow::OnStartTimeSyncClick()
-{
-	emit OnStartTimeSync();
-	//QByteArray test("bs\n");
-	//emit OnSendData(1, test);
-	//_serverWorker->masterTimer.start();
 }
 
 void MainWindow::OnStartRecordingClick()

@@ -42,7 +42,6 @@ public:
     QVBoxLayout *verticalLayout;
     QLabel *label_16;
     QVBoxLayout *verticalLayout_11;
-    QPushButton *btnSyncTime;
     QPushButton *btnStartRecording;
     QLabel *label_13;
     QFormLayout *formLayout;
@@ -330,11 +329,6 @@ public:
         verticalLayout_11->setSpacing(6);
         verticalLayout_11->setObjectName(QStringLiteral("verticalLayout_11"));
         verticalLayout_11->setContentsMargins(6, 6, 6, -1);
-        btnSyncTime = new QPushButton(dockWidgetContents_2);
-        btnSyncTime->setObjectName(QStringLiteral("btnSyncTime"));
-
-        verticalLayout_11->addWidget(btnSyncTime);
-
         btnStartRecording = new QPushButton(dockWidgetContents_2);
         btnStartRecording->setObjectName(QStringLiteral("btnStartRecording"));
 
@@ -826,7 +820,6 @@ public:
         actionNew->setText(QApplication::translate("MainWindow", "New", Q_NULLPTR));
         dockProps->setWindowTitle(QApplication::translate("MainWindow", "Live", Q_NULLPTR));
         label_16->setText(QApplication::translate("MainWindow", "Recording", Q_NULLPTR));
-        btnSyncTime->setText(QApplication::translate("MainWindow", "Start Time Sync", Q_NULLPTR));
         btnStartRecording->setText(QApplication::translate("MainWindow", "Start Recording", Q_NULLPTR));
         label_13->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
         label_12->setText(QApplication::translate("MainWindow", "Name", Q_NULLPTR));

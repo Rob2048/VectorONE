@@ -107,16 +107,16 @@ void CameraView::paintEvent(QPaintEvent* Event)
 		
 		//qp.resetTransform();
 
-		qp.setRenderHint(QPainter::Antialiasing, true);
-
 		// NOTE: Realtime blobs.
 		if (tracker->markerDataSize > 0)
 		{
 			blobDataHeader* blobHeader = (blobDataHeader*)tracker->markerData;
 			blob* blobs = (blob*)(tracker->markerData + sizeof(blobDataHeader));
+			region* regions = (region*)(tracker->markerData + sizeof(blobDataHeader) + (sizeof(blob) * blobHeader->blobCount));
 
-			//qDebug() << blobCount << markerDataSize;
+			//qDebug() << blobHeader->foundRegionCount;
 
+			qp.setRenderHint(QPainter::Antialiasing, true);
 			qp.setBrush(QBrush(QColor::fromRgb(255, 0, 255), Qt::BrushStyle::SolidPattern));
 			//qp.setBrush(QBrush(QColor::fromRgb(255, 255, 255), Qt::BrushStyle::SolidPattern));
 			qp.setPen(Qt::PenStyle::NoPen);
@@ -126,15 +126,27 @@ void CameraView::paintEvent(QPaintEvent* Event)
 				//qp.drawEllipse(_GetVPointF(tX + blobs[i].cX, blobs[i].cY), 2.0f, 2.0f);
 				qp.drawEllipse(QPointF(tX + blobs[i].cX, blobs[i].cY), 2.0f, 2.0f);
 			}
+
+			qp.setRenderHint(QPainter::Antialiasing, false);
+
+			qp.setBrush(Qt::NoBrush);
+			qp.setPen(QPen(QColor(200, 200, 200), 1.0f));
+
+			for (int i = 0; i < blobHeader->foundRegionCount; ++i)
+			{
+				region* r = &regions[i];
+				qp.drawRect(tX + r->minX, r->minY, r->width, r->height);
+			}
 		}
 
 		qp.resetTransform();
 
-		qp.setRenderHint(QPainter::Antialiasing, false);
-		
 		qp.setPen(QPen(QColor(200, 200, 200), 1.0f));
 		qp.setFont(_mainFont);
-		qp.drawText(_GetVPoint(tX, -5), tracker->name + " (0x" + QString::number(tracker->serial, 16) + ") " + QString::number(tracker->version) +  " - " + QString::number(tracker->fps) + "fps " + QString::number(tracker->dataRecv) + "kb");
+
+		char infoText[256];
+		sprintf(infoText, "%s (0x%X) V%d FPS: %3d Data %7.2f KB Frame: %7lld Sync: %d", tracker->name.toUtf8().data(), tracker->serial, tracker->version, (int)tracker->fps, tracker->dataRecv, tracker->latestFrameId, (int)tracker->avgMasterOffset);
+		qp.drawText(_GetVPoint(tX, -5), infoText);
 		
 		if (tracker->markerDataSize > 0)
 		{

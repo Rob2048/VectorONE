@@ -21,24 +21,23 @@ import RPIO.PWM as PWM
 import Queue
 import traceback
 import blobdetect
+from fractions import Fraction
+import json
 
-version = 104
+version = 110
 
 # Current Camera State
 camRunning = False
-camFps = 40
-camSyncTime = False
+camFps = 50
 camMode = 0
 
 # Net Command Request State
-setRunCamera = False
-setCamFps = 40
-setSyncTime = False
-setCamMode = 0
+setRunCamera = camRunning
+setCamFps = camFps
+setCamMode = camMode
 
 # Net
 netSend = Queue.Queue()
-netSendLock = False
 serverFile = None
 
 #------------------------------------------------------------------------------
@@ -57,6 +56,33 @@ def GetSerial():
     pass
 
   return int(cpuserial, 16)
+
+#------------------------------------------------------------------------------
+# Config.
+#------------------------------------------------------------------------------
+tempMask = ''
+for i in range(0, 64 * 44):
+	tempMask += '1'
+
+config = {
+	'name' : 'Unnamed',
+	'mask' : tempMask
+}
+
+def SaveConfig():
+	with open('config.json', 'w') as f:
+		json.dump(config, f, indent=4)
+
+def LoadConfig():
+	try:
+		with open('config.json', 'r') as f:
+			config.update(json.load(f))
+	except Exception,e:
+		print 'Config file: ' + str(e)
+	
+	SaveConfig()
+
+LoadConfig()
 
 #------------------------------------------------------------------------------
 # RGB LED Setup.
@@ -83,78 +109,6 @@ def SetRGB(r, g, b):
 	PWM.add_channel_pulse(0, BLUE_LED, 0, int(500 + (1.0 - b) * 500))
 
 #------------------------------------------------------------------------------
-# Time Sync.
-#------------------------------------------------------------------------------
-#def PingMaster():
-
-
-def SyncTime(ServerSocket, SocketFile):
-	try:
-		print('Syncing Time')
-		SetRGB(0.1, 0.0, 0.0)
-
-		timeErrs = np.zeros((30, 1))
-		latencyErrs = np.zeros((30, 1))
-
-		tOrigin = time.time()
-		
-		for x in range(0, 30):
-			sendTime = int((time.time() - tOrigin) * 1000000)
-			data = struct.pack('I', 1)
-
-			sendTime = int((time.time() - tOrigin) * 1000000)
-			ServerSocket.sendall(data)
-
-			recvData = ServerSocket.recv(4)
-			recvTime = int((time.time() - tOrigin) * 1000000)
-
-			rd = struct.unpack('>I', recvData);
-			masterTime = int(rd[0])
-
-			rtt = recvTime - sendTime
-			latency = rtt / 2
-			latencyErrs[x] = latency
-
-			timeError = masterTime - (sendTime + latency)
-			timeErrs[x] = timeError
-			
-			#print('Send Time {}'.format(sendTime))
-			print('Data {}us {}us ({}us) {}us Err: {}us'.format(recvTime, sendTime, rtt, masterTime, timeError))
-		
-		errMed = np.median(timeErrs)
-		latMed = np.median(latencyErrs)
-
-		print('Time Err: {} {}'.format(errMed, latMed))
-
-		tOrigin -= errMed / 1000000
-
-		for x in range(0, 1000):
-			checkTime = int((time.time() - tOrigin) * 1000000) + latMed
-			data = struct.pack('II', 2, checkTime)
-			ServerSocket.sendall(data)
-			time.sleep(0.05)
-
-		# Final Light Activate After Sync
-		for x in range(0, 30):
-			t = x / 30.0
-			r = 0.1 * (1 - t)
-			g = 0.1 * t
-			SetRGB(r, g, 0.0)
-			time.sleep(1.0 / 30.0)		
-
-		SetRGB(0.0, 0.1, 0.0)
-
-	except Exception,e:
-		print "Ex:" + str(e)
-		traceback.print_exc()
-
-masterTime = 0
-masterTimeOffset = 0
-masterTimeSmooth = 0
-masterTimeCamOffset = 0
-masterTimeCamTime = 0
-
-#------------------------------------------------------------------------------
 # Network Command Thread.
 #------------------------------------------------------------------------------
 class NetworkReaderThread(threading.Thread):
@@ -174,7 +128,7 @@ class NetworkReaderThread(threading.Thread):
 			try:
 				recvData = self.broadcastSocket.recv(1024)
 			except:
-				break;
+				break
 
 		self.broadcastSocket.settimeout(0.5)
 
@@ -199,12 +153,7 @@ class NetworkReaderThread(threading.Thread):
 		global setCamFps
 		global setCamMode
 		global deviceSerial
-		global masterTime
-		global masterTimeOffset
-		global masterTimeSmooth
-		global masterTimeCamOffset
-		global masterTimeCamTime
-
+		
 		print('Starting Network Thread')
 
 		self.broadcastSocket = socket(AF_INET, SOCK_DGRAM)
@@ -230,47 +179,19 @@ class NetworkReaderThread(threading.Thread):
 			while True:
 				# TODO: Catch exceptions here.
 				try:
-					data = serverFile.readline();
-					#print('Socket Read ' + data);
+					data = serverFile.readline()
+					#print('Socket Read ' + data)
 					# Check all the things
 					if not data:
 						print('Socket Dead')
 						setRunCamera = False
 						serverFile = None
-						break;
+						break
 					else:
 						data = data.rstrip()
 						args = data.split(',')
 						
-						if args[0] == 'hb':
-							timeNow = long((time.time() - startPiTime) * 1000000)
-							masterTimeCamTime = camera.timestamp
-							latency = (long(args[1]) - timeNow) / 2
-							assumedMasterTime = timeNow - masterTimeOffset
-							# NOTE: Baked in latency. Bad.
-							masterTime = long(args[2]) + 400
-							masterTimeOffset = timeNow - masterTime
-							diff = assumedMasterTime - masterTime
-
-							# NOTE: Simple smoothing filter to help with jitter.
-							# NOTE: Ignore extreme changes.
-							if masterTimeSmooth != 0 and abs(diff) > 1000:
-								masterTime = assumedMasterTime
-								print('Extreme')
-							
-							if masterTimeSmooth == 0:
-								masterTimeSmooth = masterTime
-							else:
-								masterTimeSmooth = masterTimeSmooth * 0.8 + masterTime * 0.2
-
-							masterTimeCamOffset = masterTimeCamTime - long(masterTimeSmooth)
-
-							#print('Heart beat ' + args[1] + ', ' + args[2] + ', ' + str(latency) + ' ' + str(diff))
-							frameTimeUs = 1000000 / camFps
-							frameId = long(masterTimeSmooth / frameTimeUs)
-							frameTarget = frameId * frameTimeUs
-							print('Master time ' + str(masterTimeSmooth) + ' ' + str(camFps) + ' ' + str(frameId) + ' ' + str(frameTarget) + ' ' + str(masterTimeCamTime - masterTimeCamOffset))
-						elif args[0] == 'sc':
+						if args[0] == 'sc':
 							print('Net start cam')
 							setRunCamera = True
 						elif args[0] == 'ec':
@@ -285,27 +206,25 @@ class NetworkReaderThread(threading.Thread):
 						elif args[0] == 'pf':
 							print('Set FPS ' + args[1])
 							setCamFps = int(args[1])
-						elif args[0] == 'ts':
-							setRunCamera = False
-							setSyncTime = True
-							SyncTime(self.serverSocket, serverFile)
 						elif args[0] == 'gi':
-							data = struct.pack('III', 4, version, deviceSerial)
-							# TODO: Send mask and all other properties.
-							netSend.put(data);
+							#mask = blobdetect.getmask()
+							data = struct.pack('III', 4, version, deviceSerial)							
+							netSend.put(data)
+							netSend.put(config['mask'])
 						elif args[0] == 'cm':
 							print('Set Mode ' + args[1])
 							setCamMode = int(args[1])
 						elif args[0] == 'sm':
-							# arg[1] = Hex encoded bytes for 64 * 44 = 2816 = 5632chars
 							print('Set mask')
+							config['mask'] = args[1]
 							blobdetect.setmask(args[1])
+							SaveConfig()
 
-				except:
-					print('Socket Dead')
+				except Exception,e:
+					print('Socket Dead: ' + str(e))
 					setRunCamera = False
 					serverFile = None
-					break;
+					break
 
 class NetworkWriterThread(threading.Thread):
 	def __init__(self):
@@ -322,12 +241,6 @@ class NetworkWriterThread(threading.Thread):
 
 		while True:
 			data = netSend.get()
-
-			if data == "ping":
-				# TODO: Check that conver to int is 64bit
-				localTimeUs = long((time.time() - startPiTime) * 1000000)
-				data = struct.pack('=IQ', 52, localTimeUs)
-				#print('Local time ' + str(localTimeUs) + ' ' + str(len(data)))
 
 			try:
 				if serverFile != None:
@@ -348,41 +261,89 @@ class CamOutput(object):
 	def __init__(self):
 		self.lastFrameTime = 0
 		self.adjusting = 0
+		self.integral = 0
 
 	def write(self, s):
 		global camera
 		global netSend
-		global netSendLock
-
-		frameSize = len(s)		
-		frameTime = camera.frame.timestamp
-		frameType = int(camera.frame.frame_type)
-
-		if frameTime == None:		
-			frameTime = 0
-
-		packetHeader = struct.pack('IIII', 3, frameSize, frameType, frameTime)
-
-		netSendLock = True
-		netSend.put(packetHeader)
-		netSend.put(s)
-		netSendLock = False
-	
-		#print('{} {} {} {}'.format(camera.frame.index, frameType, frameSize, frameTime))
 		
-		if frameType != 2:
-			diff = frameTime - self.lastFrameTime			
-			#print('{} {} {}'.format(camera.frame.index, diff, frameSize))
-			self.lastFrameTime = frameTime
+		try:
+			frameSize = len(s)		
+			frameTime = camera.frame.timestamp
+			frameType = int(camera.frame.frame_type)
 
-			off = (frameTime - masterTimeCamTime)
-			frameMasterTime = frameTime - (masterTimeCamOffset + off)
-			frameTimeUs = 1000000 / camFps
-			frameId = long(frameMasterTime / frameTimeUs)
-			frameTarget = frameId * frameTimeUs
-			frameDiff = frameMasterTime - frameTarget
-			print('Frame diff ' + str(frameDiff))
+			if frameTime == None:		
+				frameTime = 0
 
+			#print('{} {} {} {}'.format(camera.frame.index, frameType, frameSize, frameTime))
+
+			avgHostOffset = 0.0
+			currentFrameMasterId = 0
+			
+			if frameType != 2:
+				diff = frameTime - self.lastFrameTime
+				self.lastFrameTime = frameTime
+
+				masterTime, avgHostOffset = blobdetect.getmastertime()
+				camToMasterTime = masterTime - camera.timestamp
+
+				fd = 11080
+
+				if camFps == 50:
+					fd = 19941
+				elif camFps == 60:
+					fd = 16611
+				elif camFps == 70:
+					fd = 14235
+				elif camFps == 80:
+					fd = 12463
+				elif camFps == 90:
+					fd = 11080
+				elif camFps == 100:
+					fd = 9970
+
+				fId = (frameTime + camToMasterTime) / fd
+				frameTarget = (fId) * fd
+				frameErr = frameTarget - (frameTime + camToMasterTime)
+				
+				if frameErr < -(fd / 2):
+					frameErr = (fd + frameErr)
+
+				fIdDiff = (frameTime + camToMasterTime) - frameTarget
+				if fIdDiff < 3000:
+					currentFrameMasterId = fId
+				elif fIdDiff > fd - 3000:
+					currentFrameMasterId = fId + 1
+				
+				correction = 0.0
+				updateIndex = int(70000 / fd)
+
+				if camera.frame.index % updateIndex == 0:
+					if abs(frameErr) > 2000:
+						correction = 10
+					elif abs(frameErr) > 1000:
+						correction = 6
+					elif abs(frameErr) > 200:
+						correction = 0.6
+					elif abs(frameErr) > 100:
+						correction = 0.1
+
+					if frameErr > 0:
+						correction *= -1
+					
+					camera.framerate_delta = correction
+				else:
+					camera.framerate_delta = 0
+
+				print('{:>6} {:>6} {:>6} {:>10} {:>8.2f}'.format(diff, frameErr, correction, currentFrameMasterId, avgHostOffset))
+
+			packetHeader = struct.pack('IIIfq', 3, frameSize, frameType, avgHostOffset, currentFrameMasterId)
+			netSend.put(packetHeader)
+			netSend.put(s)
+
+		except Exception,e:
+			print "Ex:" + str(e)
+			traceback.print_exc()
 
 #------------------------------------------------------------------------------
 # Camera Output Markers.
@@ -394,8 +355,7 @@ class CamOutputMarkers(object):
 	def write(self, s):
 		global camera
 		global netSend
-		global netSendLock
-
+		
 		try:
 			frameTime = camera.frame.timestamp
 
@@ -409,18 +369,16 @@ class CamOutputMarkers(object):
 
 			if blobStatus == 0 or blobStatus == 3:
 				if blobStatus == 3:
-					blobCount = blobdetect.getblobcount()
+					#blobCount = blobdetect.getblobcount()
 					blobData = blobdetect.getblobdata()
 					blobTime = blobdetect.getframetime()
 					packetHeader = struct.pack('II', 5, len(blobData))
 					#print("Frame ready in " + str(blobTime) + " us")
-					netSendLock = True
 					netSend.put(packetHeader)
 					netSend.put(blobData)
-					netSendLock = False
 					
 				# NOTE: Takes about 1ms to copy buffer, should double buffer in C code.
-				blobdetect.pushframe(frameTime, s)
+				blobdetect.pushframe(s)
 				#print("Push new frame " + str(frameTime))
 			#else:
 				#print("Frame busy")
@@ -437,24 +395,24 @@ class CamOutputMarkers(object):
 print('VectorONE Device Software')
 
 blobdetect.startworkers()
+blobdetect.setmask(config['mask'])
+
+# TODO: Set all the things from config.
 
 deviceSerial = GetSerial()
 print('Serial: {}'.format(deviceSerial))
 
-camera = picamera.PiCamera(sensor_mode = 6, clock_mode = 'reset')
+camera = picamera.PiCamera(sensor_mode = 6, clock_mode = 'raw')
 camera.sensor_mode = 6
 camera.rotation = 180
 camera.resolution = (1024, 704)
-camera.framerate = 40
+camera.framerate = camFps
 camera.shutter_speed = 7000
 camera.iso = 800
 camera.awb_mode = 'off'
 camera.awb_gains = (1.1, 1.1)
 camera.exposure_mode = 'sports'
 camera.framerate_delta = 0
-
-startPiTime = time.time()
-startCamTime = camera.timestamp
 
 def StopCamera():
 	print('Stopping Camera')
@@ -465,11 +423,11 @@ def StartCamera():
 	if camMode == 0:
 		print('Starting Camera H264')
 		camera.start_recording(CamOutput(), format='h264', quality=25, profile='high', level='4.2', inline_headers=True, intra_period=50)
-		SetRGB(0, 0, 0.1);
+		SetRGB(0, 0, 0.1)
 	elif camMode == 1:
 		print('Starting Camera Markers')
 		camera.start_recording(CamOutputMarkers(), format='yuv')
-		SetRGB(0.1, 0, 0.1);
+		SetRGB(0.1, 0, 0.1)
 
 while True:	
 	SetRGB(0.1, 0.1, 0.1)
@@ -496,9 +454,6 @@ while True:
 			if camRunning:
 				StartCamera()
 
-		if camSyncTime != setSyncTime:
-			camSyncTime = setSyncTime
-
 		if camRunning != setRunCamera:			
 			if camRunning:
 				# TODO: Catch Exceptions
@@ -507,9 +462,4 @@ while True:
 				StartCamera()
 
 			camRunning = setRunCamera
-
-		#diff = ((camera.timestamp - startCamTime) / 1000) - ((time.time() - startPiTime) * 1000)
-		#print(str(diff) + ' ms')
-		
-
 		

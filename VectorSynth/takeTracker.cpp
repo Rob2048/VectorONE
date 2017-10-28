@@ -273,20 +273,34 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 
 	while (rp < dataSize)
 	{
-		if (rp >= dataSize - 12)
+		if (rp >= dataSize - 20)
 			break;
 
 		uint8_t* md = tracker->takeClipData + rp;
+		/*
 		int size = md[3] << 24 | md[2] << 16 | md[1] << 8 | md[0];
 		int type = md[7] << 24 | md[6] << 16 | md[5] << 8 | md[4];
 		int time = md[11] << 24 | md[10] << 16 | md[9] << 8 | md[8];
 		rp += 12;
+		//*/
+		//*
+		int size = md[3] << 24 | md[2] << 16 | md[1] << 8 | md[0];
+		int type = md[7] << 24 | md[6] << 16 | md[5] << 8 | md[4];
+		int tempAvgMasterOffset = md[11] << 24 | md[10] << 16 | md[9] << 8 | md[8];
+		int64_t frameId = md[19] << 56 | md[18] << 48 | md[17] << 40 | md[16] << 32 | md[15] << 24 | md[14] << 16 | md[13] << 8 | md[12];
+		frameId -= 6000;
+		rp += 20;
+		//int time = frameId * 19941;
+		int time = frameId * 9970;
+		//*/
 
 		if (rp + size >= dataSize)
 			break;
 
 		memcpy(tracker->takeClipData + wp, tracker->takeClipData + rp, size);
 		rp += size;
+
+		//qDebug() << frameId << type << size;
 
 		if (type == 2)
 		{
@@ -299,10 +313,13 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		{
 			int dt = time - prevTime;
 			int dtMs = (dt + 500) / 1000;
-			int frameProgress = dtMs / (1000 / tracker->fps);
+			//int frameProgress = dtMs / (1000 / tracker->fps);
+			//int frameProgress = dtMs / (19941 / 1000);
+			int tempDummies = frameId - tracker->frameCount;
 			prevTime = time;
 
-			while (frameProgress-- > 1)
+			//while (frameProgress-- > 1)
+			while (tempDummies-- > 0)
 			{
 				// Dummy Frame.
 				VidFrameData vfdDummy = {};

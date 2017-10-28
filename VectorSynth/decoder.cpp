@@ -80,8 +80,6 @@ Decoder::Decoder() :
 
 	//sws = sws_getContext(VID_W, VID_H, AV_PIX_FMT_YUV420P, destWidth, destHeight, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
 	sws = sws_getContext(VID_W, VID_H, AV_PIX_FMT_YUV420P, destWidth, destHeight, AV_PIX_FMT_GRAY8, 0, 0, 0, 0);
-
-
 }
 
 Decoder::~Decoder()
@@ -211,6 +209,10 @@ void Decoder::_CreateFrameGray()
 	{
 		for (int iX = 0; iX < VID_W; ++iX)
 		{
+			int dataIndex = iY * VID_W + iX;
+			_postFrameData[dataIndex] = lumBuffer[iY * lineSize + iX];
+
+			/*
 			//uint8_t lum = frameRGB->data[0][iY * VID_W + iX];
 			
 			// NOTE: H264 YUV from PI after decode seems to be in the range of 16 - 254.
@@ -228,6 +230,7 @@ void Decoder::_CreateFrameGray()
 
 			int dataIndex = iY * VID_W + iX;
 			_postFrameData[dataIndex] = (uint8_t)(l * 255) * frameMaskData[(iY / 8) * 128 + (iX / 8)];
+			*/
 		}
 	}
 #else
@@ -648,7 +651,7 @@ void Decoder::_findCalibrationSheet()
 
 void Decoder::ShowBlankFrame()
 {
-	colMat = cv::Scalar(128, 0, 0);
+	colMat = cv::Scalar(80, 0, 0);
 }
 
 /*

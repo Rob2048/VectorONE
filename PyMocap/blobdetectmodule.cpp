@@ -8,20 +8,24 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-// objdump -S --disassemble blobdetectmodule.o > test.dump
+// objdump -S --disassemble blobdetectmodule.o > ass.dump
 
-typedef unsigned char	u8;
-typedef unsigned short	u16;
-typedef unsigned int	u32;
-typedef char			i8;
-typedef short			i16;
-typedef int				i32;
-typedef float			f32;
-typedef double			f64;
+typedef unsigned char		u8;
+typedef unsigned short		u16;
+typedef unsigned int		u32;
+typedef unsigned long long	u64;
+typedef char				i8;
+typedef short				i16;
+typedef int					i32;
+typedef long long			i64;
+typedef float				f32;
+typedef double				f64;
 
 //------------------------------------------------------------------------------------------------------------
-// Thread management.
+// Blob detect.
 //------------------------------------------------------------------------------------------------------------
 uint8_t _frameBuffer[1024 * 704];
 uint8_t _maskBuffer[64 * 44];
@@ -31,9 +35,6 @@ pthread_mutex_t		_queueMutex;
 pthread_cond_t		_queueSignal;
 volatile uint32_t	_frameStatus = 0;
 
-//------------------------------------------------------------------------------------------------------------
-// Final output.
-//------------------------------------------------------------------------------------------------------------
 typedef struct 
 {
 	float minX;
@@ -47,20 +48,58 @@ typedef struct
 
 int		frameTimeUs;
 int 	blobCount = 0;
-blob 	blobs[256];
+blob 	blobs[1024];
 
 struct sendDataHeader
 {
 	i32 blobCount;
 	i32 regionCount;
+	i32 foundRegionCount;
 	i32 totalTime;
 };
 
 u8 sendDataBuffer[1024 * 1024];
 
 //------------------------------------------------------------------------------------------------------------
+// Time sync.
+//------------------------------------------------------------------------------------------------------------
+pthread_t 		timeSyncThread;
+
+i64				rttBuffer[100];
+i64				rttBufferSorted[100];
+i32 			rttBufferIdx = 0;
+i64 			rttMedian = 0;
+float 			rttMedianFiltered = 0.0f;
+
+i64 			offsetBuffer[100];
+i64 			offsetBufferSorted[100];
+i32 			offsetBufferIdx = 0;
+i64				offsetMedian = 0;
+volatile float	offsetMedianFiltered = 0.0f;
+
+struct timeEntry
+{
+	i64 localTime;
+	i64 masterTime;
+};
+
+timeEntry timeEntries[1000];
+i32 timeEntryIdx = 0;
+volatile u64 startTimeUs = 0;
+volatile i64 startMasterUs = 0;
+volatile float avgHostOffset = 0.0f;
+
+//------------------------------------------------------------------------------------------------------------
 // Utility functions.
 //------------------------------------------------------------------------------------------------------------
+inline u64 GetUS()
+{
+	timespec time;
+	clock_gettime(CLOCK_REALTIME, &time);
+
+	return time.tv_sec * 1000000 + time.tv_nsec / 1000;
+}
+
 inline int64_t PlatformGetMicrosecond(void)
 {
 	struct timespec time;
@@ -95,6 +134,9 @@ struct region
 	i32 pixelCount;
 	u8 	maxLum;
 };
+
+region foundRegions[1024];
+i32 foundRegionCount = 0;
 
 struct regionPixel
 {
@@ -310,9 +352,6 @@ inline void floodAddRegionPixel(i32 X, i32 Y, u8 Lum)
 
 void flood(i32 X, i32 Y, u8 Lum)
 {
-	//i32 idx = Y * mapWidth + X;
-	//mapData[idx] = 0;
-
 	// Add pixel to region.
 	floodAddRegionPixel(X, Y, Lum);
 
@@ -329,17 +368,6 @@ void flood(i32 X, i32 Y, u8 Lum)
 	if (mapData[idx3] > mapLumOffset) { addFloodNode(X - 1, Y - 0, mapData[idx3]); mapData[idx3] = 0; }
 	if (mapData[idx4] > mapLumOffset) { addFloodNode(X + 1, Y - 0, mapData[idx4]); mapData[idx4] = 0; }
 	if (mapData[idx6] > mapLumOffset) { addFloodNode(X - 0, Y + 1, mapData[idx6]); mapData[idx6] = 0; }
-	
-	/*
-	//if (regionMarks[idx0] == 0 && mapData[idx0] > mapLumOffset) { addFloodNode(X - 1, Y - 1); regionMarks[idx0] = 255; }
-	if (regionMarks[idx1] == 0 && mapData[idx1] > mapLumOffset) { addFloodNode(X - 0, Y - 1, mapData[idx1]); regionMarks[idx1] = 255; }
-	//if (regionMarks[idx2] == 0 && mapData[idx2] > mapLumOffset) { addFloodNode(X + 1, Y - 1); regionMarks[idx2] = 255; }
-	if (regionMarks[idx3] == 0 && mapData[idx3] > mapLumOffset) { addFloodNode(X - 1, Y - 0, mapData[idx3]); regionMarks[idx3] = 255; }
-	if (regionMarks[idx4] == 0 && mapData[idx4] > mapLumOffset) { addFloodNode(X + 1, Y - 0, mapData[idx4]); regionMarks[idx4] = 255; }
-	//if (regionMarks[idx5] == 0 && mapData[idx5] > mapLumOffset) { addFloodNode(X - 1, Y + 1); regionMarks[idx5] = 255; }
-	if (regionMarks[idx6] == 0 && mapData[idx6] > mapLumOffset) { addFloodNode(X - 0, Y + 1, mapData[idx6]); regionMarks[idx6] = 255; }
-	//if (regionMarks[idx7] == 0 && mapData[idx7] > mapLumOffset) { addFloodNode(X + 1, Y + 1); regionMarks[idx7] = 255; }
-	*/
 }
 
 inline bool scanLinePixelFloodable(i32 X, i32 Y)
@@ -462,7 +490,6 @@ void scanLineFlood(i32 X, i32 Y)
 // Non-recursive scan line fill.
 // https://www.codeproject.com/Articles/6017/QuickFill-An-efficient-flood-fill-algorithm
 //------------------------------------------------------------------------------------------------------------
-
 #define nMinX 0
 #define nMaxX (mapWidth - 1)
 #define nMinY 0
@@ -563,7 +590,6 @@ SKIP:        for (++x; x <= x2 && !slfPixelFloodable(x, y); ++x) {;}
 // Scan line flood fill with stack
 // http://lodev.org/cgtutor/floodfill.html#Scanline_Floodfill_Algorithm_With_Stack
 //------------------------------------------------------------------------------------------------------------
-
 void floodFillPush(int X, int Y)
 {
 	floodNode fn;
@@ -676,6 +702,7 @@ void process(i32 Pixels, i32 Width, i32 Height, u8* Data)
 	mapWidth = Width;
 	mapHeight = Height;
 	blobCount = 0;
+	foundRegionCount = 0;
 	memset(tempMarks, 255, sizeof(tempMarks));
 	//memset(regionMarks, 0, sizeof(regionMarks));
 	regionCount = 0;
@@ -808,6 +835,7 @@ void process(i32 Pixels, i32 Width, i32 Height, u8* Data)
 
 			regionCurrent.width = (regionCurrent.maxX + 1) - regionCurrent.minX;
 			regionCurrent.height = (regionCurrent.maxY + 1) - regionCurrent.minY;
+			foundRegions[foundRegionCount++] = regionCurrent;
 
 			t = PlatformGetMicrosecond() - t;
 			printf("Region: %d,%d %d,%d (%d) %d us\n", regionCurrent.minX, regionCurrent.minY, regionCurrent.width, regionCurrent.height, regionCurrent.pixelCount, (int)t);
@@ -910,113 +938,8 @@ void ProcessPixels(void)
 	printf("Total time %d\n", (int)startTime);
 }
 
-/*
-void ProcessPixels(void)
-{
-	int width = 1024;
-	int height = 704;
-	//int pixelCount = width * height;
-
-	int brightPixels = 0;
-
-	int64_t startTime = PlatformGetMicrosecond();
-
-	blobCount = 0;
-
-	for (int y = 0; y < height; ++y)
-	{
-		for (int x = 0; x < width; ++x)
-		{
-			//if (buffer[y * width + x] > 95 && buffer[y * width + x] < 189)
-			if (_frameBuffer[y * width + x] > 60)
-			{
-				++brightPixels;
-
-				bool blobFound = false;
-				
-				// Could check all blobs and find closest.
-
-				for (int b = 0; b < blobCount; ++b)
-				{
-					blob* cb = blobs + b;
-
-					float cx = (cb->minX + cb->maxX) / 2;
-					float cy = (cb->minY + cb->maxY) / 2;
-					float d = distSq(x, y, cx, cy);
-
-					if (d < 16 * 16)
-					{
-						if (x < cb->minX) cb->minX = x;
-						if (y < cb->minY) cb->minY = y;
-						if (x > cb->maxX) cb->maxX = x;
-						if (y > cb->maxY) cb->maxY = y;
-
-						blobFound = true;
-						break;
-					}
-				}
-
-				if (!blobFound)
-				{
-					blobs[blobCount].minX = x;
-					blobs[blobCount].minY = y;
-					blobs[blobCount].maxX = x;
-					blobs[blobCount].maxY = y;
-
-					++blobCount;
-				}
-			}
-		}
-	}
-
-	int64_t t1 = PlatformGetMicrosecond() - startTime;
-	startTime = PlatformGetMicrosecond();
-
-	for (int i = 0; i < blobCount; ++i)
-	{
-		blob* b = blobs + i;
-
-		b->cX = 0.0f;
-		b->cY = 0.0f;
-
-		float totalWeight = 0.0f;
-		// Count total weight
-		for (int y = b->minY; y < b->maxY + 1; ++y)
-		{
-			for (int x = b->minX; x < b->maxX + 1; ++x)
-			{
-				uint8_t p = _frameBuffer[y * width + x];
-				if (p > 60)
-				{
-					totalWeight += p;
-				}
-			}
-		}
-
-		for (int y = blobs[i].minY; y < blobs[i].maxY + 1; ++y)
-		{
-			for (int x = blobs[i].minX; x < blobs[i].maxX + 1; ++x)
-			{
-				uint8_t p = _frameBuffer[y * width + x];
-				if (p > 60)
-				{
-					float pixelV = p;
-
-					b->cX += x * (pixelV / totalWeight);
-					b->cY += y * (pixelV / totalWeight);
-				}
-			}
-		}
-	}
-
-	startTime = PlatformGetMicrosecond() - startTime;
-
-	//printf("%d %d %d %d\n", brightPixels, blobCount, (int)t1, (int)startTime);
-}
-*/
-
 //------------------------------------------------------------------------------------------------------------
-// Threading.
+// Blob process threading.
 //------------------------------------------------------------------------------------------------------------
 void *runWorkerThread(void *Args)
 {
@@ -1052,8 +975,116 @@ void enqueueWork()
 }
 
 //------------------------------------------------------------------------------------------------------------
+// Time sync threading.
+//------------------------------------------------------------------------------------------------------------
+int syncsortcmpfunc(const void* a, const void* b)
+{
+	return (*(i64*)a - *(i64*)b);
+}
+
+void *runTimeSyncThread(void *Args)
+{
+	printf("Time sync thread running.\n");
+
+	int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	
+	struct timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = 100000;
+	if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+		perror("Error");
+	}
+
+	printf("Time socket: %d\n", s);
+
+	struct sockaddr_in hostAddr = {};
+	memset((char *) &hostAddr, 0, sizeof(hostAddr));
+	hostAddr.sin_family = AF_INET;
+	hostAddr.sin_port = htons(4894);
+
+	inet_aton("192.168.1.107", &hostAddr.sin_addr);
+
+	startTimeUs = GetUS();
+	startMasterUs = 0;
+
+	memset(rttBuffer, 0, sizeof(rttBuffer));
+	memset(rttBufferSorted, 0, sizeof(rttBuffer));
+
+	while (1)
+	{
+		char msg[1500];
+
+		*(i64*)(msg + 8) = (GetUS() - startTimeUs) + offsetMedianFiltered + startMasterUs + (i64)(rttMedianFiltered * 0.5f);
+		*(i64*)msg = GetUS() - startTimeUs;
+		
+		int res = sendto(s, msg, 16, 0, (struct sockaddr*)&hostAddr, sizeof(hostAddr));
+		//std::cout << "Send " << res << "\n";
+		
+		struct sockaddr_in recvAddr;
+		unsigned int recvAddrLen = sizeof(recvAddr);
+		res = recvfrom(s, msg, sizeof(msg), 0, (struct sockaddr*)&recvAddr, &recvAddrLen);
+
+		i64 recvTimeUs = GetUS() - startTimeUs;
+
+		if (res == -1)
+		{
+			printf("TIME OUT BITCHES\n");
+			continue;
+		}
+
+		i64 sendTimeUs = *(i64*)msg;
+		i64 rttUs = recvTimeUs - sendTimeUs;
+		i64 masterTimeUs = *(i64*)(msg + 8) - startMasterUs - (i64)(rttMedianFiltered * 0.5f);
+		avgHostOffset = *(float*)(msg + 16);
+
+		if (startMasterUs == 0)
+			startMasterUs = masterTimeUs;
+
+		//printf("Recv %d: %lld %lld %lld\n", res, (u64)rttUs, masterTimeUs, (masterTimeUs - recvTimeUs));
+		
+		rttBuffer[rttBufferIdx++] = rttUs;
+		if (rttBufferIdx == 100)
+			rttBufferIdx = 0;
+
+		memcpy(rttBufferSorted, rttBuffer, sizeof(rttBuffer));
+		qsort(rttBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
+		
+		rttMedian = rttBufferSorted[49];
+		rttMedianFiltered = rttMedianFiltered * 0.95f + rttMedian * 0.05f;
+		//printf("Median rtt: %lld %f\n", rttMedian, rttMedianFiltered);
+
+		offsetBuffer[offsetBufferIdx++] = masterTimeUs - recvTimeUs;
+		if (offsetBufferIdx == 100)
+			offsetBufferIdx = 0;
+
+		memcpy(offsetBufferSorted, offsetBuffer, sizeof(offsetBuffer));
+		qsort(offsetBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
+
+		offsetMedian = offsetBufferSorted[49];
+		offsetMedianFiltered = offsetMedianFiltered * 0.95f + offsetMedian * 0.05f;
+		//printf("Median offset: %lld %f\n", offsetMedian, offsetMedianFiltered);
+		
+		usleep(100000);
+	}
+
+	close(s);
+	printf("Sync time thread done.\n");
+	pthread_exit(0);
+}
+
+//------------------------------------------------------------------------------------------------------------
 // Python interface.
 //------------------------------------------------------------------------------------------------------------
+static PyObject* blobdetect_masterconnectionmade(PyObject* Self, PyObject* Args)
+{
+	return Py_None;
+}
+
+static PyObject* blobdetect_masterconnectionlost(PyObject* Self, PyObject* Args)
+{
+	return Py_None;
+}
+
 static PyObject* blobdetect_getstatus(PyObject* Self, PyObject* Args)
 {
 	pthread_mutex_lock(&_queueMutex);
@@ -1073,6 +1104,7 @@ static PyObject* blobdetect_getblobdata(PyObject* Self, PyObject* Args)
 	sendDataHeader header = {};
 	header.blobCount = blobCount;
 	header.regionCount = regionCount;
+	header.foundRegionCount = foundRegionCount;
 	header.totalTime = frameTimeUs;
 	u8* sendBuffer = sendDataBuffer;
 
@@ -1080,6 +1112,8 @@ static PyObject* blobdetect_getblobdata(PyObject* Self, PyObject* Args)
 	sendBuffer += sizeof(sendDataHeader);
 	memcpy(sendBuffer, blobs, sizeof(blob) * blobCount);
 	sendBuffer += sizeof(blob) * blobCount;
+	memcpy(sendBuffer, foundRegions, sizeof(region) * foundRegionCount);
+	sendBuffer += sizeof(region) * foundRegionCount;
 	
 	return PyBuffer_FromMemory(&sendDataBuffer, sendBuffer - sendDataBuffer);
 }
@@ -1095,6 +1129,7 @@ static PyObject* blobdetect_startworkers(PyObject* Self, PyObject* Args)
 	pthread_cond_init(&_queueSignal, 0);
 
 	pthread_create(&_workerThread, 0, runWorkerThread, 0);
+	pthread_create(&timeSyncThread, 0, runTimeSyncThread, 0);
 
 	//int intVal = data.len;
 	//return Py_BuildValue("i", intVal);
@@ -1104,10 +1139,9 @@ static PyObject* blobdetect_startworkers(PyObject* Self, PyObject* Args)
 
 static PyObject* blobdetect_pushframe(PyObject* Self, PyObject* Args)
 {
-	int frameTime = 0;
 	Py_buffer data;
 
-	if (!PyArg_ParseTuple(Args, "ls*", &frameTime, &data))
+	if (!PyArg_ParseTuple(Args, "s*", &data))
 		return NULL;
 
 	memcpy(_frameBuffer, data.buf, 1024 * 704);
@@ -1126,7 +1160,7 @@ static PyObject* blobdetect_setmask(PyObject* Self, PyObject* Args)
 	if (!PyArg_ParseTuple(Args, "s*", &data))
 		return NULL;
 
-	memcpy(_maskBuffer, data.buf, 64 * 44);
+	memcpy(_maskBuffer, data.buf, sizeof(_maskBuffer));
 
 	/*
 	printf("Mask Data: ");
@@ -1143,15 +1177,31 @@ static PyObject* blobdetect_setmask(PyObject* Self, PyObject* Args)
 	return Py_None;
 }
 
+static PyObject* blobdetect_getmask(PyObject* Self, PyObject* Args)
+{
+	return PyBuffer_FromMemory(&_maskBuffer, sizeof(_maskBuffer));
+}
+
+static PyObject* blobdetect_getmastertime(PyObject* Self, PyObject* Args)
+{	
+	// TODO: Indicate master time sync status.
+	u64 mt = (GetUS() - startTimeUs) + (u64)offsetMedianFiltered + (u64)startMasterUs;
+	return Py_BuildValue("Kf", mt, avgHostOffset);
+}
+
 static PyMethodDef BlobdetectMethods[] = 
 {
 	{"pushframe", blobdetect_pushframe, METH_VARARGS, "Push a YUV frame for processing."},
 	{"setmask", blobdetect_setmask, METH_VARARGS, "Set the blocking mask."},
+	{"getmask", blobdetect_getmask, METH_VARARGS, "Get the blocking mask."},
 	{"startworkers", blobdetect_startworkers, METH_VARARGS, "Start threads to process frame data."},
 	{"getblobcount", blobdetect_getblobcount, METH_VARARGS, "Get processed blob count."},
 	{"getblobdata", blobdetect_getblobdata, METH_VARARGS, "Get processed blob data."},
 	{"getframetime", blobdetect_getframetime, METH_VARARGS, "Get processed frame time."},
-	{"getstatus", blobdetect_getstatus, METH_VARARGS, "Get processing state."},	
+	{"getstatus", blobdetect_getstatus, METH_VARARGS, "Get processing state."},
+	{"getmastertime", blobdetect_getmastertime, METH_VARARGS, "Get master time."},
+	{"masterconnectionmade", blobdetect_masterconnectionmade, METH_VARARGS, "Indicate that a host has been connected to."},
+	{"masterconnectionlost", blobdetect_masterconnectionlost, METH_VARARGS, "Indicate that a host has been disconnected from."},
 	{NULL, NULL, 0, NULL}
 };
 

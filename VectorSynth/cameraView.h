@@ -19,10 +19,25 @@ struct blob
 	float cY;
 };
 
+struct region
+{
+	uint8_t	id;
+	int minX;
+	int minY;
+	int maxX;
+	int maxY;
+	int width;
+	int height;
+	int pixelIdx;
+	int pixelCount;
+	uint8_t maxLum;
+};
+
 struct blobDataHeader
 {
 	int blobCount;
 	int regionCount;
+	int foundRegionCount;
 	int totalTime;
 };
 

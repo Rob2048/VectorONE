@@ -42,7 +42,7 @@ public:
 	int					iso;
 	float				threshold;
 	float				sensitivity;
-	uint8_t				mask[128 * 88];
+	uint8_t				mask[64 * 44];
 
 	cv::Mat				distCoefs;
 	cv::Mat				camMatOpt;

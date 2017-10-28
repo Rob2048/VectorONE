@@ -32,7 +32,6 @@ signals:
 	void OnServerStart();
 	void OnSendData(int ClientId, QByteArray Data);
 	void OnMaskChange(int ClientId, QByteArray Data);
-	void OnStartTimeSync();
 	void OnStartLiveFeed(int ClientId);
 	void OnStartRecording();
 	void OnStartCalibrating(int TrackerId);
@@ -44,7 +43,6 @@ public slots:
 	void OnCalibrationStartClick();
 	void OnCalibrationStopClick();
 
-	void OnStartTimeSyncClick();
 	void OnStartRecordingClick();
 	
 	void OnTimerTick();

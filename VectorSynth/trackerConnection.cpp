@@ -13,6 +13,7 @@ TrackerConnection::TrackerConnection(int Id, QTcpSocket* Socket, QElapsedTimer* 
 	_recvState(0),
 	_recvPacketId(0)
 {
+	memset(maskData, 1, sizeof(maskData));
 	decoder = new Decoder();
 
 	connect(Socket, &QTcpSocket::readyRead, this, &TrackerConnection::OnTcpSocketReadyRead);
@@ -49,6 +50,7 @@ void TrackerConnection::StartRecording()
 	sprintf(fileName, "project\\take\\%u.trakvid", serial);
 	recordFile = fopen(fileName, "wb");
 	recording = true;
+	_gotDataFrame = false;
 }
 
 void TrackerConnection::StopRecording()
@@ -74,12 +76,12 @@ void TrackerConnection::OnTcpSocketDisconnected()
 
 void TrackerConnection::OnTcpSocketReadyRead()
 {
-	while (true)
+	while (socket->bytesAvailable())
 	{
-		// NOTE: socket seems to only buffer 1448 (Single IP packet?) bytes. Must clear before more data comes through.
-
-		if (socket->bytesAvailable() == 0)
-			break;
+		// NOTE: Socket buffer (socket->bytesAvailable()) only updates on next Qt gui loop.
+		
+		//if (socket->bytesAvailable() == 0)
+			//break;
 
 		//qDebug() << "Bytes" << socket->bytesAvailable() << _recvPacketId;
 
@@ -109,6 +111,10 @@ void TrackerConnection::OnTcpSocketReadyRead()
 					_recvState = 0;
 				}
 			}
+			else
+			{
+				break;
+			}
 		}
 		else if (_recvPacketId == 2)
 		{
@@ -122,41 +128,66 @@ void TrackerConnection::OnTcpSocketReadyRead()
 
 				_recvState = 0;
 			}
+			else
+			{
+				break;
+			}
 		}
 		else if (_recvPacketId == 3)
 		{
-			if (socket->bytesAvailable() >= 12)
+			if (socket->bytesAvailable() >= 20)
 			{
-				socket->read((char*)_recvBuffer, 12);
+				socket->read((char*)_recvBuffer, 20);
+				
 				_recvFrameSize = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-
-				qDebug() << "Img frame size:" << _recvFrameSize;
-
 				int frameType = _recvBuffer[7] << 24 | _recvBuffer[6] << 16 | _recvBuffer[5] << 8 | _recvBuffer[4];
-				int frameTime = _recvBuffer[11] << 24 | _recvBuffer[10] << 16 | _recvBuffer[9] << 8 | _recvBuffer[8];
+				int tempAvgMasterOffset = _recvBuffer[11] << 24 | _recvBuffer[10] << 16 | _recvBuffer[9] << 8 | _recvBuffer[8];
+				avgMasterOffset = *(float*)&tempAvgMasterOffset;
+				latestFrameId = _recvBuffer[19] << 56 | _recvBuffer[18] << 48 | _recvBuffer[17] << 40 | _recvBuffer[16] << 32 | _recvBuffer[15] << 24 | _recvBuffer[14] << 16 | _recvBuffer[13] << 8 | _recvBuffer[12];
 
-				if (recording)
+				if (frameType == 2)
+					_gotDataFrame = true;
+
+				//qDebug() << "Frame:" << _recvFrameSize << frameType << latestFrameId << avgMasterOffset;
+
+				if (recording && _gotDataFrame)
 				{
-					RecordData(_recvBuffer, 12);
+					RecordData(_recvBuffer, 20);
 				}
 
 				_recvState = 2;
 				_recvPacketId = 0;
 			}
+			else
+			{
+				break;
+			}
 		}
 		else if (_recvPacketId == 4)
 		{
-			if (socket->bytesAvailable() >= 8)
+			if (socket->bytesAvailable() >= 8 + sizeof(maskData))
 			{
-				socket->read((char*)_recvBuffer, 8);
+				qDebug() << "Got GI";
+
+				socket->read((char*)_recvBuffer, 8 + sizeof(maskData));
 				version = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
 				serial = _recvBuffer[7] << 24 | _recvBuffer[6] << 16 | _recvBuffer[5] << 8 | _recvBuffer[4];
 				name = "Unnamed";
-				
+				memcpy(maskData, _recvBuffer + 8, sizeof(maskData));
+
+				for (int i = 0; i < sizeof(maskData); ++i)
+				{
+					maskData[i] -= 48;
+				}
+
 				accepted = true;
 				_recvState = 0;
 
 				emit OnInfoUpdate(this);
+			}
+			else
+			{
+				break;
 			}
 		}
 		else if (_recvPacketId == 5)
@@ -178,6 +209,10 @@ void TrackerConnection::OnTcpSocketReadyRead()
 				_recvPacketId = 0;
 				_recvLength = 0;
 			}
+			else
+			{
+				break;
+			}
 		}
 		else if (_recvPacketId == 52)
 		{
@@ -197,6 +232,10 @@ void TrackerConnection::OnTcpSocketReadyRead()
 
 				_recvState = 0;
 			}
+			else
+			{
+				break;
+			}
 		}
 		else if (_recvState == 2)
 		{
@@ -205,11 +244,12 @@ void TrackerConnection::OnTcpSocketReadyRead()
 			int readBytes = socket->read((char*)_recvBuffer, _recvFrameSize);
 			_recvFrameSize -= readBytes;
 
-			if (recording)
+			if (recording && _gotDataFrame)
 			{
 				RecordData(_recvBuffer, readBytes);
 			}
-			else if (streaming)
+			
+			if (streaming)
 			{
 				if (decoder->DoDecode(_recvBuffer, readBytes))
 				{
@@ -220,7 +260,7 @@ void TrackerConnection::OnTcpSocketReadyRead()
 					emit OnNewFrame(this);
 				}
 			}
-
+			
 			if (_recvFrameSize == 0)
 				_recvState = 0;
 		}
@@ -257,6 +297,10 @@ void TrackerConnection::OnTcpSocketReadyRead()
 
 					_recvState = 0;
 				}
+			}
+			else
+			{
+				break;
 			}
 		}
 	}

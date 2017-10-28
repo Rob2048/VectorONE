@@ -159,18 +159,6 @@ void ServerThreadWorker::OnFindCalibChanged(int State)
 		it->second->decoder->drawUndistorted = (State == 2);
 }
 
-void ServerThreadWorker::InternalSync1()
-{
-	//_connections[1]->socket->write("ts\n");
-	//masterTimer.start();
-}
-
-void ServerThreadWorker::OnStartTimeSync()
-{
-	//_StopAllTrackerCams();
-	//QTimer::singleShot(500, this, SLOT(InternalSync1()));
-}
-
 void ServerThreadWorker::OnViewFeed(int ClientId, bool Image)
 {
 	//qDebug() << "View Feed" << ClientId << QThread::currentThreadId();
@@ -214,7 +202,7 @@ void ServerThreadWorker::OnStartRecording()
 		qDebug() << "Stop Recording";
 		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 		{
-			it->second->socket->write("ec\n");
+			//it->second->socket->write("ec\n");
 			it->second->StopRecording();
 		}
 	}
@@ -223,13 +211,13 @@ void ServerThreadWorker::OnStartRecording()
 		qDebug() << "Start Recording";
 		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 		{
-			it->second->socket->write("ec\n");
-			it->second->streaming = false;
-			it->second->recording = false;
+			//it->second->socket->write("ec\n");
+			//it->second->streaming = false;
+			//it->second->recording = false;
 			it->second->StartRecording();
 		}
 
-		QTimer::singleShot(2000, this, SLOT(InternalRecordingStart()));
+		//QTimer::singleShot(2000, this, SLOT(InternalRecordingStart()));
 	}
 
 	_recording = !_recording;

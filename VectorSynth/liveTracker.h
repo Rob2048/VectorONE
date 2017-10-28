@@ -33,6 +33,8 @@ public:
 	float		data;
 	float		fps;
 	float		dataRecv;
+	float		avgMasterOffset;
+	int64_t		latestFrameId;
 
 	bool		selected;
 	bool		active;

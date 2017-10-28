@@ -235,6 +235,7 @@ void Take::SetFrame(int TimelineFrame, bool DrawMarkers)
 		else
 		{
 			tracker->decoder->ShowBlankFrame();
+			memcpy(tracker->liveTracker->frameData, tracker->decoder->GetFrameMatData(), VID_W * VID_H * 3);
 		}
 	}
 }

@@ -12,6 +12,30 @@ int64_t		timeCounterStart;
 
 double		startTime;
 
+struct pingCamEntry
+{
+	unsigned long ip;
+	float avgTime;
+};
+
+pingCamEntry	pingEntries[64];
+int				pingEntryCount = 0;
+
+inline pingCamEntry* getPingEntry(unsigned long Ip)
+{
+	for (int i = 0; i < pingEntryCount; ++i)
+	{
+		if (pingEntries[i].ip == Ip)
+			return &pingEntries[i];
+	}
+
+	pingCamEntry* result = &pingEntries[pingEntryCount++];
+	result->ip = Ip;
+	result->avgTime = 0.0f;
+
+	return result;
+}
+
 double GetTime()
 {
 	LARGE_INTEGER counter;
@@ -71,13 +95,22 @@ DWORD WINAPI timeSyncThreadProc(LPVOID Parameter)
 		int64_t recvTimeUs = (int64_t)((GetTime() - startTime) * 1000000.0);
 		
 		int64_t guessedTime = *(int64_t*)(msg + 8);
+		int64_t diff = recvTimeUs - guessedTime;
+
+		pingCamEntry* pce = getPingEntry(clientAddr.sin_addr.s_addr);
+		
+		if (diff < 10000)
+			pce->avgTime = pce->avgTime * 0.8f + (float)diff * 0.2f;
+		else
+			pce->avgTime = 10000.0f;
 
 		*(int64_t*)(msg + 8) = recvTimeUs;
-		sendto(s, msg, 16, 0, (SOCKADDR*)&clientAddr, clientLen);
+		*(float*)(msg + 16) = pce->avgTime;
+		sendto(s, msg, 20, 0, (SOCKADDR*)&clientAddr, clientLen);
 
 		char outMsg[256];
-		sprintf(outMsg, "Got UDP packet %s:%d - %d %d %d %d\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), bytesRead, recvTimeUs, guessedTime, (recvTimeUs - guessedTime));
-		OutputDebugStringA(outMsg);
+		//sprintf(outMsg, "Got UDP packet (%u) %s:%d - %d %d %d %d %f\n", clientAddr.sin_addr, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), bytesRead, recvTimeUs, guessedTime, diff, pce->avgTime);
+		//OutputDebugStringA(outMsg);
 	}
 
 	closesocket(s);

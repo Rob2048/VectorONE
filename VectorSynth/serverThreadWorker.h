@@ -35,8 +35,6 @@ public slots:
 	void OnDrawGuidesChanged(int State);
 	void OnDrawMarkersChanged(int State);
 	void OnFindCalibChanged(int State);
-	void InternalSync1();
-	void OnStartTimeSync();
 	void OnViewFeed(int ClientId, bool Image);
 	void InternalRecordingStart();
 	void OnStartRecording();

@@ -18,10 +18,12 @@ public:
 	int				version;
 	bool			accepted;
 	bool			streaming;
-	bool			recording;
+	bool			recording;	
 	QTcpSocket*		socket;
 	Decoder*		decoder;
 	uint8_t			postFrameData[VID_W * VID_H * 3];
+	float			avgMasterOffset;
+	int64_t			latestFrameId;
 	uint8_t			markerData[1024 * 10];
 	int				markerDataSize;
 	QElapsedTimer*	masterTimer;
@@ -59,4 +61,5 @@ private:
 	int			_recvState;
 	int			_recvPacketId;
 	int			_recvFrameSize;
+	bool		_gotDataFrame;
 };

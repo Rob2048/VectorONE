@@ -49,6 +49,9 @@ i32 timeEntryIdx = 0;
 //------------------------------------------------------------------------------------------------------------
 inline u64 GetUS()
 {
+	//struct timespec t1, t2;
+	//clock_gettime(CLOCK_MONOTONIC, &t1);
+
 	timespec time;
 	clock_gettime(CLOCK_REALTIME, &time);
 
@@ -132,7 +135,7 @@ int main(int argc, char** argv)
 		fflush(f);
 
 		rttBuffer[rttBufferIdx++] = rttUs;
-		if (rttBufferIdx > 100)
+		if (rttBufferIdx == 100)
 			rttBufferIdx = 0;
 
 		memcpy(rttBufferSorted, rttBuffer, sizeof(rttBuffer));
@@ -148,7 +151,7 @@ int main(int argc, char** argv)
 		std::cout << "Median rtt: " << rttMedian << " " << rttMedianFiltered << "\n";
 
 		offsetBuffer[offsetBufferIdx++] = masterTimeUs - recvTimeUs;
-		if (offsetBufferIdx > 100)
+		if (offsetBufferIdx == 100)
 			offsetBufferIdx = 0;
 
 		memcpy(offsetBufferSorted, offsetBuffer, sizeof(offsetBuffer));
