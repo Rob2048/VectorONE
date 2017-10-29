@@ -35,6 +35,8 @@ struct region
 
 struct blobDataHeader
 {
+	int64_t frameId;
+	float avgMasterOffset;	
 	int blobCount;
 	int regionCount;
 	int foundRegionCount;

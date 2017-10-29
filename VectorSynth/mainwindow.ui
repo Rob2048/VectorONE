@@ -260,6 +260,13 @@ padding: 5px;</string>
         <number>6</number>
        </property>
        <item>
+        <widget class="QPushButton" name="btnResetFrameIds">
+         <property name="text">
+          <string>Reset Frame IDs</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="btnStartRecording">
          <property name="text">
           <string>Start Recording</string>
@@ -997,17 +1004,17 @@ padding: 5px;</string>
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_20">
-         <property name="text">
-          <string>Sensitivity</string>
-         </property>
-        </widget>
-       </item>
        <item row="3" column="1">
         <widget class="QSlider" name="sldTakeThreshold">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Sensitivity</string>
          </property>
         </widget>
        </item>
@@ -1017,16 +1024,6 @@ padding: 5px;</string>
           <enum>Qt::Horizontal</enum>
          </property>
         </widget>
-       </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="label_21">
-         <property name="text">
-          <string>Offset</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="1">
-        <widget class="QLineEdit" name="txtTakeOffset"/>
        </item>
       </layout>
      </item>

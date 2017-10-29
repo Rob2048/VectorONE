@@ -4,7 +4,7 @@ void ServerThreadWorker::OnStart()
 {
 	qDebug() << "Starting Server Thread Worker" << QThread::currentThreadId();
 
-	masterTimer.start();
+	takeStartFrameId = 0;
 
 	_tcpServer = new QTcpServer(this);
 	connect(_tcpServer, &QTcpServer::newConnection, this, &ServerThreadWorker::OnTcpServerConnectionAvailable);
@@ -46,7 +46,7 @@ void ServerThreadWorker::OnTcpServerConnectionAvailable()
 		_connectionMutex.lock();
 		qDebug() << "New TCP Client" << QThread::currentThreadId();
 		tcpSocket->setReadBufferSize(1024 * 1024);
-		TrackerConnection* nc = new TrackerConnection(++_nextConnectionId, tcpSocket, &masterTimer, this);
+		TrackerConnection* nc = new TrackerConnection(++_nextConnectionId, tcpSocket, this);
 		_connections[_nextConnectionId] = nc;
 		connect(nc, &TrackerConnection::OnNewFrame, this, &ServerThreadWorker::OnNewFrame);
 		connect(nc, &TrackerConnection::OnNewMarkersFrame, this, &ServerThreadWorker::OnNewMarkersFrame);
@@ -159,7 +159,7 @@ void ServerThreadWorker::OnFindCalibChanged(int State)
 		it->second->decoder->drawUndistorted = (State == 2);
 }
 
-void ServerThreadWorker::OnViewFeed(int ClientId, bool Image)
+void ServerThreadWorker::OnViewFeed(int ClientId, int StreamMode)
 {
 	//qDebug() << "View Feed" << ClientId << QThread::currentThreadId();
 	//_StopAllTrackerCams();
@@ -167,22 +167,25 @@ void ServerThreadWorker::OnViewFeed(int ClientId, bool Image)
 	TrackerConnection* tracker = _GetTracker(ClientId);
 	if (tracker)
 	{
-		if (Image)
+		if (StreamMode == 0)
+		{
+			tracker->socket->write("ec\n");
+			tracker->streamMode = 0;
+			tracker->streaming = false;
+		}
+		else if (StreamMode == 1)
 		{
 			tracker->socket->write("cm,0\n");
 			tracker->socket->write("sc\n");
+			tracker->streamMode = 1;
 			tracker->streaming = true;
 		}
-		else
+		else if (StreamMode == 2)
 		{
 			tracker->socket->write("cm,1\n");
 			tracker->socket->write("sc\n");
+			tracker->streamMode = 2;
 			tracker->streaming = true;
-			/*
-			tracker->socket->write("ec\n");
-			tracker->streaming = false;
-			tracker->recording = false;
-			*/
 		}
 	}
 }
@@ -193,6 +196,11 @@ void ServerThreadWorker::InternalRecordingStart()
 	{
 		it->second->socket->write("sc\n");
 	}
+}
+
+void ServerThreadWorker::OnResetFrameIds()
+{
+	takeStartFrameId = 0;
 }
 
 void ServerThreadWorker::OnStartRecording()
@@ -209,6 +217,9 @@ void ServerThreadWorker::OnStartRecording()
 	else
 	{
 		qDebug() << "Start Recording";
+
+		takeStartFrameId = 0;
+
 		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 		{
 			//it->second->socket->write("ec\n");

@@ -79,7 +79,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	tracker->iso = trackerObj["iso"].toInt();
 	tracker->threshold = trackerObj["threshold"].toDouble();
 	tracker->sensitivity = trackerObj["sensitivity"].toDouble();
-	tracker->frameOffset = trackerObj["offset"].toInt();
 	tracker->frameCount = 0;
 
 	LiveTracker->loaded = true;
@@ -288,7 +287,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		int type = md[7] << 24 | md[6] << 16 | md[5] << 8 | md[4];
 		int tempAvgMasterOffset = md[11] << 24 | md[10] << 16 | md[9] << 8 | md[8];
 		int64_t frameId = md[19] << 56 | md[18] << 48 | md[17] << 40 | md[16] << 32 | md[15] << 24 | md[14] << 16 | md[13] << 8 | md[12];
-		frameId -= 6000;
 		rp += 20;
 		//int time = frameId * 19941;
 		int time = frameId * 9970;
@@ -548,8 +546,7 @@ void TakeTracker::Save()
 	jsonObj["iso"] = iso;
 	jsonObj["threshold"] = threshold;
 	jsonObj["sensitivity"] = sensitivity;
-	jsonObj["offset"] = frameOffset;
-
+	
 	QJsonArray jsonIntrinMat;
 	jsonIntrinMat.append(camMat.at<double>(0, 0));
 	jsonIntrinMat.append(camMat.at<double>(1, 0));
@@ -663,8 +660,8 @@ void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
 	int startKeyFrameIndex;
 	int startFrameIndex;
 
-	int localStartFrame = StartFrame - frameOffset;
-	int localEndFrame = EndFrame - frameOffset;
+	int localStartFrame = StartFrame;
+	int localEndFrame = EndFrame;
 
 	if (localStartFrame < 0) 
 		localStartFrame = 0;
@@ -730,8 +727,8 @@ void TakeTracker::UndistortMarkers(int StartFrame, int EndFrame)
 	int startKeyFrameIndex;
 	int startFrameIndex;
 
-	int localStartFrame = StartFrame - frameOffset;
-	int localEndFrame = EndFrame - frameOffset;
+	int localStartFrame = StartFrame;
+	int localEndFrame = EndFrame;
 
 	if (localStartFrame < 0)
 		localStartFrame = 0;
@@ -778,8 +775,8 @@ void TakeTracker::BuildRays(int StartFrame, int EndFrame)
 	int startKeyFrameIndex;
 	int startFrameIndex;
 
-	int localStartFrame = StartFrame - frameOffset;
-	int localEndFrame = EndFrame - frameOffset;
+	int localStartFrame = StartFrame;
+	int localEndFrame = EndFrame;
 
 	if (localStartFrame < 0)
 		localStartFrame = 0;
@@ -828,7 +825,7 @@ bool TakeTracker::ConvertTimelineToFrame(int TimelineFrame, int* KeyFrameIndex, 
 	{
 		int m = l + (r - l) / 2;
 
-		int mIdx = vidFrameData[m].index + frameOffset;
+		int mIdx = vidFrameData[m].index;
 
 		if (mIdx == TimelineFrame)
 		{
@@ -879,7 +876,7 @@ void TakeTracker::DrawMarkers(int FrameIndex)
 
 VidFrameData* TakeTracker::GetLocalFrame(int TimelineFrame)
 {
-	int localFrame = TimelineFrame - frameOffset;
+	int localFrame = TimelineFrame;
 	
 	if (localFrame < 0 || localFrame >= vidFrameData.count())
 		return 0;

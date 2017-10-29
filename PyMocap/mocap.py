@@ -162,7 +162,8 @@ class NetworkReaderThread(threading.Thread):
 		while True:
 			self.serverSocket = socket()
 			self.serverIP = self.FindServer()
-			#self.serverIP = '192.168.1.107'
+			blobdetect.masterconnectionmade(self.serverIP)
+			#self.serverIP = '192.168.1.106'
 
 			try:
 				self.serverSocket.connect((self.serverIP, 8000))
@@ -183,9 +184,10 @@ class NetworkReaderThread(threading.Thread):
 					#print('Socket Read ' + data)
 					# Check all the things
 					if not data:
-						print('Socket Dead')
+						blobdetect.masterconnectionlost()
+						print('Socket Dead')						
 						setRunCamera = False
-						serverFile = None
+						serverFile = None						
 						break
 					else:
 						data = data.rstrip()
@@ -221,6 +223,7 @@ class NetworkReaderThread(threading.Thread):
 							SaveConfig()
 
 				except Exception,e:
+					blobdetect.masterconnectionlost()
 					print('Socket Dead: ' + str(e))
 					setRunCamera = False
 					serverFile = None
@@ -260,9 +263,7 @@ NetworkWriterThread()
 class CamOutput(object):
 	def __init__(self):
 		self.lastFrameTime = 0
-		self.adjusting = 0
-		self.integral = 0
-
+		
 	def write(self, s):
 		global camera
 		global netSend
@@ -359,29 +360,77 @@ class CamOutputMarkers(object):
 		try:
 			frameTime = camera.frame.timestamp
 
-			if frameTime == None:		
+			if frameTime == None:
 				frameTime = 0
+				return
 
 			diff = frameTime - self.lastFrameTime
 			self.lastFrameTime = frameTime
 
-			blobStatus = blobdetect.getstatus()
+			currentFrameMasterId = 0
+			masterTime, avgHostOffset = blobdetect.getmastertime()
+			camToMasterTime = masterTime - camera.timestamp
 
+			fd = 11080
+
+			if camFps == 50:
+				fd = 19941
+			elif camFps == 60:
+				fd = 16611
+			elif camFps == 70:
+				fd = 14235
+			elif camFps == 80:
+				fd = 12463
+			elif camFps == 90:
+				fd = 11080
+			elif camFps == 100:
+				fd = 9970
+
+			fId = (frameTime + camToMasterTime) / fd
+			frameTarget = (fId) * fd
+			frameErr = frameTarget - (frameTime + camToMasterTime)
+			
+			if frameErr < -(fd / 2):
+				frameErr = (fd + frameErr)
+
+			fIdDiff = (frameTime + camToMasterTime) - frameTarget
+			if fIdDiff < 3000:
+				currentFrameMasterId = fId
+			elif fIdDiff > fd - 3000:
+				currentFrameMasterId = fId + 1
+			
+			correction = 0.0
+			updateIndex = int(70000 / fd)
+
+			if camera.frame.index % updateIndex == 0:
+				if abs(frameErr) > 2000:
+					correction = 10
+				elif abs(frameErr) > 1000:
+					correction = 6
+				elif abs(frameErr) > 200:
+					correction = 0.6
+				elif abs(frameErr) > 100:
+					correction = 0.1
+
+				if frameErr > 0:
+					correction *= -1
+				
+				camera.framerate_delta = correction
+			else:
+				camera.framerate_delta = 0
+
+			print('{:>6} {:>6} {:>6} {:>10} {:>8.2f}'.format(diff, frameErr, correction, currentFrameMasterId, avgHostOffset))
+
+			blobStatus = blobdetect.getstatus()
 			if blobStatus == 0 or blobStatus == 3:
 				if blobStatus == 3:
-					#blobCount = blobdetect.getblobcount()
 					blobData = blobdetect.getblobdata()
-					blobTime = blobdetect.getframetime()
 					packetHeader = struct.pack('II', 5, len(blobData))
-					#print("Frame ready in " + str(blobTime) + " us")
 					netSend.put(packetHeader)
 					netSend.put(blobData)
 					
 				# NOTE: Takes about 1ms to copy buffer, should double buffer in C code.
-				blobdetect.pushframe(s)
-				#print("Push new frame " + str(frameTime))
-			#else:
-				#print("Frame busy")
+				blobdetect.pushframe(currentFrameMasterId, avgHostOffset, s)
 			
 			#print('Markers {} {} {} {}'.format(camera.frame.index, diff, blobCount, len(blobData)))
 

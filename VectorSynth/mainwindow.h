@@ -33,16 +33,18 @@ signals:
 	void OnSendData(int ClientId, QByteArray Data);
 	void OnMaskChange(int ClientId, QByteArray Data);
 	void OnStartLiveFeed(int ClientId);
+	void OnResetFrameIds();
 	void OnStartRecording();
 	void OnStartCalibrating(int TrackerId);
 	void OnStopCalibrating();
-	void OnStartViewSteam(int TrackedId, bool Image);
+	void OnStartViewSteam(int TrackedId, int StreamMode);
 
 public slots:
 
 	void OnCalibrationStartClick();
 	void OnCalibrationStopClick();
 
+	void OnResetFrameIdsClick();
 	void OnStartRecordingClick();
 	
 	void OnTimerTick();
@@ -55,7 +57,6 @@ public slots:
 	void OnTrackerMarkersFrame(int TrackerId);
 	void OnTrackerInfoUpdate(int TrackerId);
 
-	// UI
 	void OnCamSensitivityChange(int Value);
 
 	void OnExposureEditingFinished();
@@ -72,7 +73,6 @@ public slots:
 
 	void OnTimelineChange(int Value);
 
-	void OnTakeOffsetEditingFinished();
 	void OnTakeSensitivityChange(int Value);
 	void OnTakeThresholdChange(int Value);
 
@@ -124,9 +124,7 @@ private:
 
 public:
 
-	
-
-	void viewFeed(int TrackedId, bool Image);
+	void viewFeed(int TrackedId, int StreamMode);
 	void selectTracker(LiveTracker* Tracker);
 	LiveTracker* GetTracker(int TrackerId);
 

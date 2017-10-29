@@ -209,10 +209,9 @@ void Decoder::_CreateFrameGray()
 	{
 		for (int iX = 0; iX < VID_W; ++iX)
 		{
-			int dataIndex = iY * VID_W + iX;
-			_postFrameData[dataIndex] = lumBuffer[iY * lineSize + iX];
+			//int dataIndex = iY * VID_W + iX;
+			//_postFrameData[dataIndex] = lumBuffer[iY * lineSize + iX];
 
-			/*
 			//uint8_t lum = frameRGB->data[0][iY * VID_W + iX];
 			
 			// NOTE: H264 YUV from PI after decode seems to be in the range of 16 - 254.
@@ -220,17 +219,17 @@ void Decoder::_CreateFrameGray()
 			uint8_t lum = lumBuffer[iY * lineSize + iX];
 			float l = ((float)lum - 16.0f) / (255.0f - 16.0f);
 
-			if (l < camThreshold)
-				l = 0.0f;
+			//if (l < camThreshold)
+				//l = 0.0f;
 
-			l = l * camSensitivity * 10;
+			//l = l * camSensitivity * 10;
 			
 			if (l < 0.0f) l = 0.0f;
 			else if (l > 1.0f) l = 1.0f;
 
 			int dataIndex = iY * VID_W + iX;
-			_postFrameData[dataIndex] = (uint8_t)(l * 255) * frameMaskData[(iY / 8) * 128 + (iX / 8)];
-			*/
+			//_postFrameData[dataIndex] = (uint8_t)(l * 255) * frameMaskData[(iY / 8) * 128 + (iX / 8)];
+			_postFrameData[dataIndex] = (uint8_t)(l * 255);
 		}
 	}
 #else

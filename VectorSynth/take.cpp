@@ -176,20 +176,17 @@ void Take::Save()
 
 void Take::_AdjustRuntime()
 {
-	timeStart = INT32_MAX;
+	timeStart = 0;
 	timeEnd = 0;
 
 	for (int i = 0; i < trackers.count(); ++i)
 	{
 		TakeTracker* tracker = trackers[i];
 
-		qDebug() << "Local Timeline" << tracker->frameCount << tracker->frameOffset;
+		qDebug() << "Local Timeline" << tracker->frameCount;
 
-		if (tracker->frameCount + tracker->frameOffset > timeEnd)
-			timeEnd = tracker->frameCount + tracker->frameOffset;
-
-		if (tracker->frameOffset < timeStart)
-			timeStart = tracker->frameOffset;
+		if (tracker->frameCount > timeEnd)
+			timeEnd = tracker->frameCount;
 	}
 
 	timeFrames = timeEnd - timeStart + 1;
@@ -593,7 +590,7 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 				if (trackers[t]->vidFrameData[v].type == 3)
 					continue;
 
-				int globalFrame = trackers[t]->vidFrameData[v].index + trackers[t]->frameOffset;
+				int globalFrame = trackers[t]->vidFrameData[v].index;
 
 				if (globalFrame < StartFrame || globalFrame > EndFrame)
 					continue;
@@ -652,7 +649,7 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 				if (trackers[t]->vidFrameData[v].type == 3)
 					continue;
 
-				int globalFrame = trackers[t]->vidFrameData[v].index + trackers[t]->frameOffset;
+				int globalFrame = trackers[t]->vidFrameData[v].index;
 
 				if (globalFrame < StartFrame || globalFrame > EndFrame)
 					continue;
@@ -792,8 +789,8 @@ void Take::_BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTrack
 		VidFrameData* t1 = &tracker1->vidFrameData[tfIndex[1]];
 
 		// NOTE: Global = local + offset.
-		int tfT0 = tracker0->frameOffset + t0->index;
-		int tfT1 = tracker1->frameOffset + t1->index;
+		int tfT0 = t0->index;
+		int tfT1 = t1->index;
 
 		// Skip dummy frames (dropped frame).
 		if (t0->type == 3 || t0->type == 3)

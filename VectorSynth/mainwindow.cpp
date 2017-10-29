@@ -97,6 +97,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	
 	connect(this, &MainWindow::OnServerStart, _serverWorker, &ServerThreadWorker::OnStart);
 	connect(this, &MainWindow::OnSendData, _serverWorker, &ServerThreadWorker::OnSendData);
+	connect(this, &MainWindow::OnResetFrameIds, _serverWorker, &ServerThreadWorker::OnResetFrameIds);
 	connect(this, &MainWindow::OnStartRecording, _serverWorker, &ServerThreadWorker::OnStartRecording);
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
 	connect(this, &MainWindow::OnStopCalibrating, _serverWorker, &ServerThreadWorker::OnStopCalibrating);
@@ -109,6 +110,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	// Buttons.
 	connect(ui->btnStartCalibration, &QPushButton::clicked, this, &MainWindow::OnCalibrationStartClick);
 	connect(ui->btnStopCalibration, &QPushButton::clicked, this, &MainWindow::OnCalibrationStopClick);
+	connect(ui->btnResetFrameIds, &QPushButton::clicked, this, &MainWindow::OnResetFrameIds);
 	connect(ui->btnStartRecording, &QPushButton::clicked, this, &MainWindow::OnStartRecordingClick);
 	connect(ui->btnLoadTake, &QPushButton::clicked, this, &MainWindow::OnLoadTakeClick);
 	connect(ui->btnSaveTake, &QPushButton::clicked, this, &MainWindow::OnSaveTakeClick);
@@ -187,9 +189,6 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->sldTakeThreshold->setMinimum(0);
 	connect(ui->sldTakeThreshold, &QSlider::valueChanged, this, &MainWindow::OnTakeThresholdChange);
 	
-	ui->txtTakeOffset->setValidator(new QIntValidator(-50, 50, this));
-	connect(ui->txtTakeOffset, &QLineEdit::editingFinished, this, &MainWindow::OnTakeOffsetEditingFinished);
-
 	// Timeline
 	connect(_timeline, &TimelineWidget::valueChanged, this, &MainWindow::OnTimelineChange);
 	connect(ui->btnNextFrame, &QPushButton::clicked, this, &MainWindow::OnNextFrameClick);
@@ -460,6 +459,12 @@ void MainWindow::OnStartRecordingClick()
 	emit OnStartRecording();
 }
 
+void MainWindow::OnResetFrameIdsClick()
+{
+	emit OnResetFrameIds();
+}
+
+
 void MainWindow::OnCalibrationStartClick()
 {
 	// Selected Tracker
@@ -569,16 +574,6 @@ void MainWindow::OnSaveTakeClick()
 		return;
 
 	_take->Save();
-}
-
-void MainWindow::OnTakeOffsetEditingFinished()
-{
-	if (_selectedTakeTracker)
-	{
-		int value = ui->txtTakeOffset->text().toInt();
-		_selectedTakeTracker->frameOffset = value;
-		_timelineCurrentFrame = -1;
-	}
 }
 
 void MainWindow::OnTakeSensitivityChange(int Value)
@@ -691,9 +686,9 @@ void MainWindow::OnBuildFundamentalMatClicked()
 	}
 }
 
-void MainWindow::viewFeed(int TrackedId, bool Image)
+void MainWindow::viewFeed(int TrackedId, int StreamMode)
 {
-	emit OnStartViewSteam(TrackedId, Image);
+	emit OnStartViewSteam(TrackedId, StreamMode);
 }
 
 void MainWindow::selectTracker(LiveTracker* Tracker)
@@ -708,7 +703,7 @@ void MainWindow::selectTracker(LiveTracker* Tracker)
 
 LiveTracker* MainWindow::GetTracker(int TrackerId)
 {
-	if (_liveTrackers.find(TrackerId) ==_liveTrackers.end())
+	if (_liveTrackers.find(TrackerId) == _liveTrackers.end())
 	{
 		return 0;
 	}

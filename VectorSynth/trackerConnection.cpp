@@ -1,17 +1,23 @@
 #include "trackerConnection.h"
+#include "serverThreadWorker.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
 
-TrackerConnection::TrackerConnection(int Id, QTcpSocket* Socket, QElapsedTimer* MasterTimer, QObject* Parent) :
+TrackerConnection::TrackerConnection(int Id, QTcpSocket* Socket, QObject* Parent) :
 	QObject(Parent),
 	id(Id),
 	accepted(false),
+	streamMode(0),
 	streaming(false),
 	recording(false),
 	recordFile(0),
 	socket(Socket),
-	masterTimer(MasterTimer),
 	_recvLength(0),
 	_recvState(0),
-	_recvPacketId(0)
+	_recvPacketId(0),
+	_serverThreadWorker((ServerThreadWorker*)Parent)
 {
 	memset(maskData, 1, sizeof(maskData));
 	decoder = new Decoder();
@@ -42,15 +48,51 @@ void TrackerConnection::StartRecording()
 	StopRecording();
 
 	char fileName[256];
-	sprintf(fileName, "project\\take\\%u.mask", serial);
-	FILE* maskFile = fopen(fileName, "wb");
-	fwrite(maskData, sizeof(maskData), 1, maskFile);
-	fclose(maskFile);
-	
-	sprintf(fileName, "project\\take\\%u.trakvid", serial);
-	recordFile = fopen(fileName, "wb");
-	recording = true;
-	_gotDataFrame = false;
+
+	if (streamMode == 1 || streamMode == 2)
+	{
+		/*
+		QJsonObject jsonObj;
+		jsonObj["name"] = name;
+		jsonObj["fps"] = fps;
+		jsonObj["exposure"] = exposure;
+		jsonObj["iso"] = iso;
+		jsonObj["threshold"] = threshold;
+		jsonObj["sensitivity"] = sensitivity;
+		jsonObj["offset"] = frameOffset;
+		QJsonDocument jsonDoc(jsonObj);
+		QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
+		QFile file("project\\take\\" + QString::number(serial) + ".tracker");
+
+		if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+		{
+			qDebug() << "Tracker: Save file failed for recording.";
+			return;
+		}
+
+		file.write(jsonBytes);
+		file.close();
+		*/
+
+		sprintf(fileName, "project\\take\\%u.mask", serial);
+		FILE* maskFile = fopen(fileName, "wb");
+		fwrite(maskData, sizeof(maskData), 1, maskFile);
+		fclose(maskFile);
+	}
+
+	if (streamMode == 1)
+	{
+		sprintf(fileName, "project\\take\\%u.trakvid", serial);
+		recordFile = fopen(fileName, "wb");
+		recording = true;
+		_gotDataFrame = false;
+	}
+	else if (streamMode == 2)
+	{
+		sprintf(fileName, "project\\take\\%u.trakblobs", serial);
+		recordFile = fopen(fileName, "wb");
+		recording = true;
+	}
 }
 
 void TrackerConnection::StopRecording()
@@ -60,6 +102,7 @@ void TrackerConnection::StopRecording()
 
 	recordFile = 0;
 	recording = false;
+	_gotDataFrame = false;
 }
 
 void TrackerConnection::RecordData(uint8_t* Data, int Len)
@@ -80,11 +123,6 @@ void TrackerConnection::OnTcpSocketReadyRead()
 	{
 		// NOTE: Socket buffer (socket->bytesAvailable()) only updates on next Qt gui loop.
 		
-		//if (socket->bytesAvailable() == 0)
-			//break;
-
-		//qDebug() << "Bytes" << socket->bytesAvailable() << _recvPacketId;
-
 		if (_recvState == 0)
 		{
 			_recvLength = 0;
@@ -95,38 +133,6 @@ void TrackerConnection::OnTcpSocketReadyRead()
 				socket->read((char*)_recvBuffer, 4);
 				_recvPacketId = _recvBuffer[0];
 				_recvState = 1;
-				//qDebug() << "Got PacketId" << _recvPacketId;
-
-				if (_recvPacketId == 1)
-				{
-					int masterTime = masterTimer->nsecsElapsed() / 1000;
-
-					QByteArray sendBytes(4, Qt::Initialization::Uninitialized);
-					QDataStream stream(&sendBytes, QIODevice::OpenModeFlag::WriteOnly);
-					stream << masterTime;
-					socket->write(sendBytes);
-
-					qDebug() << "Time Sync" << time << masterTime << sendBytes.length();
-
-					_recvState = 0;
-				}
-			}
-			else
-			{
-				break;
-			}
-		}
-		else if (_recvPacketId == 2)
-		{
-			if (socket->bytesAvailable() >= 4)
-			{
-				socket->read((char*)_recvBuffer, 4);
-				int time = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				int masterTime = masterTimer->nsecsElapsed() / 1000;
-
-				qDebug() << "Time Check" << (masterTime - time);
-
-				_recvState = 0;
 			}
 			else
 			{
@@ -139,16 +145,28 @@ void TrackerConnection::OnTcpSocketReadyRead()
 			{
 				socket->read((char*)_recvBuffer, 20);
 				
-				_recvFrameSize = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				int frameType = _recvBuffer[7] << 24 | _recvBuffer[6] << 16 | _recvBuffer[5] << 8 | _recvBuffer[4];
-				int tempAvgMasterOffset = _recvBuffer[11] << 24 | _recvBuffer[10] << 16 | _recvBuffer[9] << 8 | _recvBuffer[8];
-				avgMasterOffset = *(float*)&tempAvgMasterOffset;
-				latestFrameId = _recvBuffer[19] << 56 | _recvBuffer[18] << 48 | _recvBuffer[17] << 40 | _recvBuffer[16] << 32 | _recvBuffer[15] << 24 | _recvBuffer[14] << 16 | _recvBuffer[13] << 8 | _recvBuffer[12];
+				_recvFrameSize = *(int*)&_recvBuffer[0];
+				int frameType = *(int*)&_recvBuffer[4];
+				avgMasterOffset = *(float*)&_recvBuffer[8];
+				int64_t tempLatestFrameId = *(int64_t*)&_recvBuffer[12];
+
+				if (tempLatestFrameId > 0)
+					latestFrameId = tempLatestFrameId;
 
 				if (frameType == 2)
+				{
 					_gotDataFrame = true;
+					if (_serverThreadWorker->takeStartFrameId == 0)
+					{
+						_serverThreadWorker->takeStartFrameId = latestFrameId + 1;
+					}
+				}
 
-				//qDebug() << "Frame:" << _recvFrameSize << frameType << latestFrameId << avgMasterOffset;
+				if (tempLatestFrameId > 0)
+				{
+					latestFrameId -= _serverThreadWorker->takeStartFrameId;
+					*(int64_t*)&_recvBuffer[12] = latestFrameId;
+				}
 
 				if (recording && _gotDataFrame)
 				{
@@ -194,43 +212,24 @@ void TrackerConnection::OnTcpSocketReadyRead()
 		{
 			// NOTE: Realtime blob packet header.
 
-			if (socket->bytesAvailable() >= 4)
+			if (socket->bytesAvailable() >= 16)
 			{
-				socket->read((char*)_recvBuffer, 4);
-				_recvFrameSize = _recvFrameSize = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				//qDebug() << "Frame Size:" << _recvFrameSize;
+				socket->read((char*)_recvBuffer, 16);
+				_recvFrameSize = *(int*)&_recvBuffer[0];
+				latestFrameId = *(int64_t*)&_recvBuffer[4];
+				avgMasterOffset = *(float*)&_recvBuffer[12];
 
-				if (recording)
+				if (_serverThreadWorker->takeStartFrameId == 0)
 				{
-					//RecordData(_recvBuffer, 12);
+					_serverThreadWorker->takeStartFrameId = latestFrameId;
 				}
+
+				latestFrameId -= _serverThreadWorker->takeStartFrameId;
+				*(int64_t*)&_recvBuffer[4] = latestFrameId;
 
 				_recvState = 3;
 				_recvPacketId = 0;
-				_recvLength = 0;
-			}
-			else
-			{
-				break;
-			}
-		}
-		else if (_recvPacketId == 52)
-		{
-			if (socket->bytesAvailable() >= 8)
-			{
-				int64_t masterTime = masterTimer->nsecsElapsed() / 1000;
-				socket->read((char*)_recvBuffer, 8);				
-				int64_t localTime  = _recvBuffer[7] << 56 | _recvBuffer[6] << 48 | _recvBuffer[5] << 40 | _recvBuffer[4] << 32 |
-									_recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				
-				QString cmd = "hb," + QString::number(localTime) + "," + QString::number(masterTime) + "\n";
-				QByteArray packet(cmd.toLatin1());
-				socket->write(packet);
-
-				//qDebug() << "Got ping " << localTime << masterTime << (localTime - masterTime);
-				qDebug() << localTime << masterTime << (localTime - masterTime);
-
-				_recvState = 0;
+				_recvLength = 16;
 			}
 			else
 			{
@@ -269,26 +268,26 @@ void TrackerConnection::OnTcpSocketReadyRead()
 			// NOTE: Recv realtime blob stream.
 
 			//qDebug() << "Test Avail" << socket->bytesAvailable();
-			if (socket->bytesAvailable() > 0 && _recvLength < _recvFrameSize)
+			if (socket->bytesAvailable() > 0 && _recvLength < _recvFrameSize + 4)
 			{
-				int readBytes = socket->read((char*)_recvBuffer + _recvLength, _recvFrameSize - _recvLength);
+				int readBytes = socket->read((char*)_recvBuffer + _recvLength, (_recvFrameSize + 4) - _recvLength);
 				_recvLength += readBytes;
 
 				//qDebug() << "Total" << _recvLength << "/" << _recvFrameSize;
 
-				if (_recvLength == _recvFrameSize)
+				if (_recvLength == _recvFrameSize + 4)
 				{
 					++decoder->newFrames;
-					decoder->dataRecvBytes += _recvFrameSize;
+					decoder->dataRecvBytes += _recvFrameSize + 4;
 
 					if (recording)
 					{
-						//RecordData(_recvBuffer, readBytes);
+						RecordData(_recvBuffer, _recvFrameSize + 4);
 					}
 					else if (streaming)
 					{
 						Lock();
-						memcpy(markerData, _recvBuffer, _recvFrameSize);
+						memcpy(markerData, _recvBuffer + 4, _recvFrameSize);
 						markerDataSize = _recvFrameSize;
 						Unlock();
 

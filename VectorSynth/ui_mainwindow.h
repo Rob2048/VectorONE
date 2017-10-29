@@ -42,6 +42,7 @@ public:
     QVBoxLayout *verticalLayout;
     QLabel *label_16;
     QVBoxLayout *verticalLayout_11;
+    QPushButton *btnResetFrameIds;
     QPushButton *btnStartRecording;
     QLabel *label_13;
     QFormLayout *formLayout;
@@ -120,11 +121,9 @@ public:
     QLabel *label_17;
     QLabel *lblTakeTrackerInfo;
     QLabel *label_19;
-    QLabel *label_20;
     QSlider *sldTakeThreshold;
+    QLabel *label_20;
     QSlider *sldTakeSensitivity;
-    QLabel *label_21;
-    QLineEdit *txtTakeOffset;
     QDockWidget *dockSceneView;
     QWidget *sceneViewDockContents;
     QVBoxLayout *verticalLayout_6;
@@ -329,6 +328,11 @@ public:
         verticalLayout_11->setSpacing(6);
         verticalLayout_11->setObjectName(QStringLiteral("verticalLayout_11"));
         verticalLayout_11->setContentsMargins(6, 6, 6, -1);
+        btnResetFrameIds = new QPushButton(dockWidgetContents_2);
+        btnResetFrameIds->setObjectName(QStringLiteral("btnResetFrameIds"));
+
+        verticalLayout_11->addWidget(btnResetFrameIds);
+
         btnStartRecording = new QPushButton(dockWidgetContents_2);
         btnStartRecording->setObjectName(QStringLiteral("btnStartRecording"));
 
@@ -766,32 +770,22 @@ public:
 
         formLayout_2->setWidget(3, QFormLayout::LabelRole, label_19);
 
-        label_20 = new QLabel(dockWidgetContents);
-        label_20->setObjectName(QStringLiteral("label_20"));
-
-        formLayout_2->setWidget(4, QFormLayout::LabelRole, label_20);
-
         sldTakeThreshold = new QSlider(dockWidgetContents);
         sldTakeThreshold->setObjectName(QStringLiteral("sldTakeThreshold"));
         sldTakeThreshold->setOrientation(Qt::Horizontal);
 
         formLayout_2->setWidget(3, QFormLayout::FieldRole, sldTakeThreshold);
 
+        label_20 = new QLabel(dockWidgetContents);
+        label_20->setObjectName(QStringLiteral("label_20"));
+
+        formLayout_2->setWidget(4, QFormLayout::LabelRole, label_20);
+
         sldTakeSensitivity = new QSlider(dockWidgetContents);
         sldTakeSensitivity->setObjectName(QStringLiteral("sldTakeSensitivity"));
         sldTakeSensitivity->setOrientation(Qt::Horizontal);
 
         formLayout_2->setWidget(4, QFormLayout::FieldRole, sldTakeSensitivity);
-
-        label_21 = new QLabel(dockWidgetContents);
-        label_21->setObjectName(QStringLiteral("label_21"));
-
-        formLayout_2->setWidget(5, QFormLayout::LabelRole, label_21);
-
-        txtTakeOffset = new QLineEdit(dockWidgetContents);
-        txtTakeOffset->setObjectName(QStringLiteral("txtTakeOffset"));
-
-        formLayout_2->setWidget(5, QFormLayout::FieldRole, txtTakeOffset);
 
 
         verticalLayout_5->addLayout(formLayout_2);
@@ -820,6 +814,7 @@ public:
         actionNew->setText(QApplication::translate("MainWindow", "New", Q_NULLPTR));
         dockProps->setWindowTitle(QApplication::translate("MainWindow", "Live", Q_NULLPTR));
         label_16->setText(QApplication::translate("MainWindow", "Recording", Q_NULLPTR));
+        btnResetFrameIds->setText(QApplication::translate("MainWindow", "Reset Frame IDs", Q_NULLPTR));
         btnStartRecording->setText(QApplication::translate("MainWindow", "Start Recording", Q_NULLPTR));
         label_13->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
         label_12->setText(QApplication::translate("MainWindow", "Name", Q_NULLPTR));
@@ -874,7 +869,6 @@ public:
         lblTakeTrackerInfo->setText(QApplication::translate("MainWindow", "40fps 7000exp 100iso", Q_NULLPTR));
         label_19->setText(QApplication::translate("MainWindow", "Threshold", Q_NULLPTR));
         label_20->setText(QApplication::translate("MainWindow", "Sensitivity", Q_NULLPTR));
-        label_21->setText(QApplication::translate("MainWindow", "Offset", Q_NULLPTR));
         dockSceneView->setWindowTitle(QApplication::translate("MainWindow", "Scene View", Q_NULLPTR));
     } // retranslateUi
 

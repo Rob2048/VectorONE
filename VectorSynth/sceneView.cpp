@@ -575,7 +575,7 @@ void SceneView::paintGL()
 		for (int i = 0; i < take->trackers.count(); ++i)
 		{
 			TakeTracker* t = take->trackers[i];
-			int localTrackerFrame = timelineFrame + t->frameOffset;
+			int localTrackerFrame = timelineFrame;
 
 			for (int mIdx = 0; mIdx < t->vidFrameData[localTrackerFrame].newMarkers.size(); ++mIdx)
 			{

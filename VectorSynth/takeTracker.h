@@ -26,24 +26,22 @@ public:
 
 	static TakeTracker* Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker);
 
-	int					id;
+	// Take.
 	QString				takeName;
-	QString				name;
-	uint32_t			serial;
 	LiveTracker*		liveTracker;
-	
-	Decoder*			decoder;
-	QList<VidFrameData> vidFrameData;
+	int					drawMarkerFrameIndex;
 	int					vidPlaybackFrame;
-	uint8_t*			takeClipData;
 
+	// Tracker params.
+	int					id;
+	QString				name;
+	uint32_t			serial;	
 	int					exposure;
 	int					fps;
 	int					iso;
 	float				threshold;
 	float				sensitivity;
 	uint8_t				mask[64 * 44];
-
 	cv::Mat				distCoefs;
 	cv::Mat				camMatOpt;
 	cv::Mat				camMat;
@@ -51,23 +49,12 @@ public:
 	cv::Mat				rtMat; // [R|t]
 	QMatrix4x4			worldMat;
 	QVector3D			worldPos;
-
-	/*
-	cv::Mat				refRt; // Same as Pu
-	cv::Mat				refR;
-	cv::Mat				refT;
-	QMatrix4x4			refWorldMat;
-	cv::Mat				refK;
-	cv::Mat				refOptK;
-	cv::Mat				refPu;
-	cv::Mat				refP;
-	cv::Mat				refD;
-	QVector3D			refWorldPos;
-	*/
 	
+	// Frame data.
+	Decoder*			decoder;
+	uint8_t*			takeClipData;
 	int					frameCount;
-	int					frameOffset;	
-	int					drawMarkerFrameIndex;
+	QList<VidFrameData> vidFrameData;	
 
 	TakeTracker();
 	~TakeTracker();

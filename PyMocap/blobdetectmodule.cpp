@@ -24,11 +24,19 @@ typedef long long			i64;
 typedef float				f32;
 typedef double				f64;
 
+volatile char* 		masterIp = 0;
+volatile bool 		timeSyncReset = false;
+volatile bool 		timeSyncRunning = false;
+pthread_mutex_t		timeSyncMutex;
+pthread_cond_t		timeSyncSignal;
+
 //------------------------------------------------------------------------------------------------------------
 // Blob detect.
 //------------------------------------------------------------------------------------------------------------
 uint8_t _frameBuffer[1024 * 704];
 uint8_t _maskBuffer[64 * 44];
+i64 	_frameId = 0;
+f32		_avgMasterOffset = 0.0f;
 
 pthread_t 			_workerThread;
 pthread_mutex_t		_queueMutex;
@@ -52,6 +60,8 @@ blob 	blobs[1024];
 
 struct sendDataHeader
 {
+	i64	frameId;
+	f32 avgMasterOffset;
 	i32 blobCount;
 	i32 regionCount;
 	i32 foundRegionCount;
@@ -83,8 +93,6 @@ struct timeEntry
 	i64 masterTime;
 };
 
-timeEntry timeEntries[1000];
-i32 timeEntryIdx = 0;
 volatile u64 startTimeUs = 0;
 volatile i64 startMasterUs = 0;
 volatile float avgHostOffset = 0.0f;
@@ -838,7 +846,7 @@ void process(i32 Pixels, i32 Width, i32 Height, u8* Data)
 			foundRegions[foundRegionCount++] = regionCurrent;
 
 			t = PlatformGetMicrosecond() - t;
-			printf("Region: %d,%d %d,%d (%d) %d us\n", regionCurrent.minX, regionCurrent.minY, regionCurrent.width, regionCurrent.height, regionCurrent.pixelCount, (int)t);
+			//printf("Region: %d,%d %d,%d (%d) %d us\n", regionCurrent.minX, regionCurrent.minY, regionCurrent.width, regionCurrent.height, regionCurrent.pixelCount, (int)t);
 
 			// Reject small regions.
 			if (regionCurrent.width >= 3 && regionCurrent.width < 100 && regionCurrent.height >= 3 && regionCurrent.height < 100)
@@ -920,7 +928,7 @@ void process(i32 Pixels, i32 Width, i32 Height, u8* Data)
 	}
 
 	tFlood = PlatformGetMicrosecond() - tFlood;
-	printf("Total flood %d\n", (int)tFlood);
+	//printf("Total flood %d\n", (int)tFlood);
 
 	//printf("Done %d\n", blobCount);
 }
@@ -935,7 +943,7 @@ void ProcessPixels(void)
 	process(pixelCount, width, height, _frameBuffer);
 	startTime = PlatformGetMicrosecond() - startTime;
 	frameTimeUs = startTime;
-	printf("Total time %d\n", (int)startTime);
+	//printf("Total time %d\n", (int)startTime);
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -977,6 +985,24 @@ void enqueueWork()
 //------------------------------------------------------------------------------------------------------------
 // Time sync threading.
 //------------------------------------------------------------------------------------------------------------
+void timeSyncStart()
+{
+	pthread_mutex_lock(&timeSyncMutex);
+	timeSyncReset = true;
+	timeSyncRunning = true;
+	pthread_mutex_unlock(&timeSyncMutex);
+	pthread_cond_signal(&timeSyncSignal);
+}
+
+void timeSyncStop()
+{
+	pthread_mutex_lock(&timeSyncMutex);
+	timeSyncReset = true;
+	timeSyncRunning = false;
+	pthread_mutex_unlock(&timeSyncMutex);
+	pthread_cond_signal(&timeSyncSignal);
+}
+
 int syncsortcmpfunc(const void* a, const void* b)
 {
 	return (*(i64*)a - *(i64*)b);
@@ -1002,69 +1028,103 @@ void *runTimeSyncThread(void *Args)
 	hostAddr.sin_family = AF_INET;
 	hostAddr.sin_port = htons(4894);
 
-	inet_aton("192.168.1.107", &hostAddr.sin_addr);
-
-	startTimeUs = GetUS();
-	startMasterUs = 0;
-
-	memset(rttBuffer, 0, sizeof(rttBuffer));
-	memset(rttBufferSorted, 0, sizeof(rttBuffer));
-
 	while (1)
 	{
-		char msg[1500];
+		printf("Time sync pending\n");
 
-		*(i64*)(msg + 8) = (GetUS() - startTimeUs) + offsetMedianFiltered + startMasterUs + (i64)(rttMedianFiltered * 0.5f);
-		*(i64*)msg = GetUS() - startTimeUs;
+		pthread_mutex_lock(&timeSyncMutex);
 		
-		int res = sendto(s, msg, 16, 0, (struct sockaddr*)&hostAddr, sizeof(hostAddr));
-		//std::cout << "Send " << res << "\n";
+		while (!timeSyncRunning)
+			pthread_cond_wait(&timeSyncSignal, &timeSyncMutex);
+
+		printf("Time sync reset\n");
+
+		timeSyncReset = false;
+
+		// TOOD: Validate IP conversion.
+		inet_aton((const char*)masterIp, &hostAddr.sin_addr);
 		
-		struct sockaddr_in recvAddr;
-		unsigned int recvAddrLen = sizeof(recvAddr);
-		res = recvfrom(s, msg, sizeof(msg), 0, (struct sockaddr*)&recvAddr, &recvAddrLen);
+		memset(rttBuffer, 0, sizeof(rttBuffer));		
+		memset(rttBufferSorted, 0, sizeof(rttBuffer));
+		rttBufferIdx = 0;		
+		rttMedian = 0;
+		rttMedianFiltered = 0.0f;
 
-		i64 recvTimeUs = GetUS() - startTimeUs;
+		memset(offsetBuffer, 0, sizeof(offsetBuffer));
+		memset(offsetBufferSorted, 0, sizeof(offsetBufferSorted));
+		offsetBufferIdx = 0;
+		offsetMedian = 0;
+		offsetMedianFiltered = 0.0f;
+		
+		startTimeUs = GetUS();
+		startMasterUs = 0;
+		avgHostOffset = 0.0f;
+		
+		pthread_mutex_unlock(&timeSyncMutex);
 
-		if (res == -1)
+		while (1)
 		{
-			printf("TIME OUT BITCHES\n");
-			continue;
+			pthread_mutex_lock(&timeSyncMutex);
+			bool leave = timeSyncReset;
+			pthread_mutex_unlock(&timeSyncMutex);
+
+			if (leave)
+				break;
+
+			char msg[1500];
+
+			*(i64*)(msg + 8) = (GetUS() - startTimeUs) + offsetMedianFiltered + startMasterUs + (i64)(rttMedianFiltered * 0.5f);
+			*(i64*)msg = GetUS() - startTimeUs;
+			
+			int res = sendto(s, msg, 16, 0, (struct sockaddr*)&hostAddr, sizeof(hostAddr));
+			//std::cout << "Send " << res << "\n";
+			
+			struct sockaddr_in recvAddr;
+			unsigned int recvAddrLen = sizeof(recvAddr);
+			res = recvfrom(s, msg, sizeof(msg), 0, (struct sockaddr*)&recvAddr, &recvAddrLen);
+
+			i64 recvTimeUs = GetUS() - startTimeUs;
+
+			if (res == -1)
+			{
+				printf("TIME OUT BITCHES\n");
+				continue;
+			}
+
+			i64 sendTimeUs = *(i64*)msg;
+			i64 rttUs = recvTimeUs - sendTimeUs;
+			i64 masterTimeUs = *(i64*)(msg + 8) - startMasterUs - (i64)(rttMedianFiltered * 0.5f);
+			avgHostOffset = *(float*)(msg + 16);
+
+			if (startMasterUs == 0)
+				startMasterUs = masterTimeUs;
+
+			//printf("Recv %d: %lld %lld %lld\n", res, (u64)rttUs, masterTimeUs, (masterTimeUs - recvTimeUs));
+			
+			rttBuffer[rttBufferIdx++] = rttUs;
+			if (rttBufferIdx == 100)
+				rttBufferIdx = 0;
+
+			memcpy(rttBufferSorted, rttBuffer, sizeof(rttBuffer));
+			qsort(rttBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
+			
+			rttMedian = rttBufferSorted[49];
+			rttMedianFiltered = rttMedianFiltered * 0.95f + rttMedian * 0.05f;
+			//printf("Median rtt: %lld %f\n", rttMedian, rttMedianFiltered);
+
+			offsetBuffer[offsetBufferIdx++] = masterTimeUs - recvTimeUs;
+			if (offsetBufferIdx == 100)
+				offsetBufferIdx = 0;
+
+			memcpy(offsetBufferSorted, offsetBuffer, sizeof(offsetBuffer));
+			qsort(offsetBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
+
+			offsetMedian = offsetBufferSorted[49];
+			offsetMedianFiltered = offsetMedianFiltered * 0.95f + offsetMedian * 0.05f;
+			//printf("Median offset: %lld %f\n", offsetMedian, offsetMedianFiltered);
+			
+			usleep(100000);
 		}
-
-		i64 sendTimeUs = *(i64*)msg;
-		i64 rttUs = recvTimeUs - sendTimeUs;
-		i64 masterTimeUs = *(i64*)(msg + 8) - startMasterUs - (i64)(rttMedianFiltered * 0.5f);
-		avgHostOffset = *(float*)(msg + 16);
-
-		if (startMasterUs == 0)
-			startMasterUs = masterTimeUs;
-
-		//printf("Recv %d: %lld %lld %lld\n", res, (u64)rttUs, masterTimeUs, (masterTimeUs - recvTimeUs));
-		
-		rttBuffer[rttBufferIdx++] = rttUs;
-		if (rttBufferIdx == 100)
-			rttBufferIdx = 0;
-
-		memcpy(rttBufferSorted, rttBuffer, sizeof(rttBuffer));
-		qsort(rttBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
-		
-		rttMedian = rttBufferSorted[49];
-		rttMedianFiltered = rttMedianFiltered * 0.95f + rttMedian * 0.05f;
-		//printf("Median rtt: %lld %f\n", rttMedian, rttMedianFiltered);
-
-		offsetBuffer[offsetBufferIdx++] = masterTimeUs - recvTimeUs;
-		if (offsetBufferIdx == 100)
-			offsetBufferIdx = 0;
-
-		memcpy(offsetBufferSorted, offsetBuffer, sizeof(offsetBuffer));
-		qsort(offsetBufferSorted, 100, sizeof(i64), syncsortcmpfunc);
-
-		offsetMedian = offsetBufferSorted[49];
-		offsetMedianFiltered = offsetMedianFiltered * 0.95f + offsetMedian * 0.05f;
-		//printf("Median offset: %lld %f\n", offsetMedian, offsetMedianFiltered);
-		
-		usleep(100000);
 	}
 
 	close(s);
@@ -1077,11 +1137,20 @@ void *runTimeSyncThread(void *Args)
 //------------------------------------------------------------------------------------------------------------
 static PyObject* blobdetect_masterconnectionmade(PyObject* Self, PyObject* Args)
 {
+	if (!PyArg_ParseTuple(Args, "s", &masterIp))
+		return NULL;
+
+	timeSyncStart();
+
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 static PyObject* blobdetect_masterconnectionlost(PyObject* Self, PyObject* Args)
 {
+	timeSyncStop();
+
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
@@ -1102,6 +1171,8 @@ static PyObject* blobdetect_getblobcount(PyObject* Self, PyObject* Args)
 static PyObject* blobdetect_getblobdata(PyObject* Self, PyObject* Args)
 {
 	sendDataHeader header = {};
+	header.frameId = _frameId;
+	header.avgMasterOffset = _avgMasterOffset;
 	header.blobCount = blobCount;
 	header.regionCount = regionCount;
 	header.foundRegionCount = foundRegionCount;
@@ -1141,9 +1212,10 @@ static PyObject* blobdetect_pushframe(PyObject* Self, PyObject* Args)
 {
 	Py_buffer data;
 
-	if (!PyArg_ParseTuple(Args, "s*", &data))
+	if (!PyArg_ParseTuple(Args, "Lfs*", &_frameId, &_avgMasterOffset, &data))
 		return NULL;
 
+	// TODO: Do we need to memcpy here?
 	memcpy(_frameBuffer, data.buf, 1024 * 704);
 	enqueueWork();
 

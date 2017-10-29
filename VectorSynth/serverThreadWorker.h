@@ -35,11 +35,16 @@ public slots:
 	void OnDrawGuidesChanged(int State);
 	void OnDrawMarkersChanged(int State);
 	void OnFindCalibChanged(int State);
-	void OnViewFeed(int ClientId, bool Image);
+	void OnViewFeed(int ClientId, int StreamMode);
 	void InternalRecordingStart();
+	void OnResetFrameIds();
 	void OnStartRecording();
 	void OnStartCalibrating(int TrackerId);
 	void OnStopCalibrating();
+
+public:
+
+	int64_t takeStartFrameId;
 
 	TrackerConnection* LockConnection(int TrackerId);
 	void UnlockConnection(TrackerConnection* Tracker);
@@ -50,7 +55,6 @@ private:
 
 	std::map<int, TrackerConnection*> _connections;
 
-	QElapsedTimer	masterTimer;
 	bool			_recording = false;
 	int				_nextConnectionId = 0;
 	QTcpServer*		_tcpServer;

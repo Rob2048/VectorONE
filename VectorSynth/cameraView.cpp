@@ -574,11 +574,11 @@ void CameraView::mouseReleaseEvent(QMouseEvent* Event)
 
 				if (result == video)
 				{
-					main->viewFeed(tracker->id, true);
+					main->viewFeed(tracker->id, 1);
 				}
 				else if (result == markers)
 				{
-					main->viewFeed(tracker->id, false);
+					main->viewFeed(tracker->id, 2);
 				}
 				else if (result == interactNone)
 				{

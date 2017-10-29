@@ -6,31 +6,38 @@
 
 QT_USE_NAMESPACE
 
+class ServerThreadWorker;
+
 class TrackerConnection : public QObject
 {
 	Q_OBJECT
 
 public:
 
-	uint32_t		id;
-	uint32_t		serial;
-	QString			name;
-	int				version;
+	// Connection.
 	bool			accepted;
 	bool			streaming;
-	bool			recording;	
-	QTcpSocket*		socket;
-	Decoder*		decoder;
-	uint8_t			postFrameData[VID_W * VID_H * 3];
-	float			avgMasterOffset;
-	int64_t			latestFrameId;
-	uint8_t			markerData[1024 * 10];
-	int				markerDataSize;
-	QElapsedTimer*	masterTimer;
+	bool			recording;
+	int				streamMode;
 	FILE*			recordFile;
+	QTcpSocket*		socket;
+	
+	// Tracker params.
+	uint32_t		id;
+	QString			name;
+	uint32_t		serial;
+	int				version;
 	uint8_t			maskData[64 * 44];
 
-	TrackerConnection(int Id, QTcpSocket* Socket, QElapsedTimer* MasterTimer, QObject* Parent);
+	// Frame data.
+	Decoder*		decoder;
+	float			avgMasterOffset;
+	int64_t			latestFrameId;
+	uint8_t			postFrameData[VID_W * VID_H * 3];
+	uint8_t			markerData[1024 * 10];
+	int				markerDataSize;
+
+	TrackerConnection(int Id, QTcpSocket* Socket, QObject* Parent);
 	~TrackerConnection();
 
 	void StartRecording();
@@ -62,4 +69,6 @@ private:
 	int			_recvPacketId;
 	int			_recvFrameSize;
 	bool		_gotDataFrame;
+
+	ServerThreadWorker* _serverThreadWorker;
 };
