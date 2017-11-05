@@ -73,17 +73,24 @@ public slots:
 
 	void OnTimelineChange(int Value);
 
-	void OnTakeSensitivityChange(int Value);
-	void OnTakeThresholdChange(int Value);
-
 	void OnGenerateMaskClicked();
-	void OnBuild2DMarkersClicked();
 	void OnBuild3DMarkersClicked();
 	void OnBuildFundamentalMatClicked();
+	void OnBundleAdjustClicked();
 	void OnAssignWorldBasisClicked();
 
-	void OnDrawMarkersClicked();
-	void OnDrawVideoClicked();
+	// Tracker view buttons.
+	void OnToggleUpdateClicked();
+	void OnToggleMaskClicked();
+	void OnToggleDistortedMarkersClicked();
+	void OnToggleUndistortedMarkersClicked();
+	void OnToggleReprojectedMarkersClicked();
+	void OnTogglePixelGridClicked();
+	
+	// Scene view buttons.
+	void OnToggleMarkerSourcesClicked();
+	void OnToggleRaysClicked();
+	void OnToggleExpandedMarkersClicked();
 
 	void OnPlayTimerTick();
 
@@ -116,8 +123,6 @@ private:
 
 	QTimer*				_playTimer;
 	float				_playFrame;
-
-	bool _drawMarkers;
 
 	void _LoadTakeTracker(int Id);
 	void _AdvanceTakeFrame(int Camera, int Frames);

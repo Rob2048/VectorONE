@@ -45,6 +45,10 @@ public:
 	int			timelineFrame;
 	QVector3D	_lastSelectedPos[3];
 
+	bool		showMarkerSources;
+	bool		showRays;
+	bool		showExpandedMarkers;
+
 	SceneView(QWidget *Parent = 0);
 	
 	void tick();

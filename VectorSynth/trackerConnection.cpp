@@ -51,6 +51,7 @@ void TrackerConnection::StartRecording()
 
 	if (streamMode == 1 || streamMode == 2)
 	{
+		// TODO: Save tracker object, not mask directly.
 		/*
 		QJsonObject jsonObj;
 		jsonObj["name"] = name;
@@ -74,10 +75,12 @@ void TrackerConnection::StartRecording()
 		file.close();
 		*/
 
+		/*
 		sprintf(fileName, "project\\take\\%u.mask", serial);
 		FILE* maskFile = fopen(fileName, "wb");
 		fwrite(maskData, sizeof(maskData), 1, maskFile);
 		fclose(maskFile);
+		*/
 	}
 
 	if (streamMode == 1)
@@ -248,6 +251,7 @@ void TrackerConnection::OnTcpSocketReadyRead()
 				RecordData(_recvBuffer, readBytes);
 			}
 			
+			//*
 			if (streaming)
 			{
 				if (decoder->DoDecode(_recvBuffer, readBytes))
@@ -259,6 +263,7 @@ void TrackerConnection::OnTcpSocketReadyRead()
 					emit OnNewFrame(this);
 				}
 			}
+			//*/
 			
 			if (_recvFrameSize == 0)
 				_recvState = 0;

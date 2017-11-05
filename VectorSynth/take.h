@@ -25,6 +25,16 @@ public:
 	QList<Marker2D> sources;
 };
 
+class MarkerGroup
+{
+public:
+
+	QVector3D pos;
+	QVector3D avgPos;
+	int count;
+	QList<Marker2D> sources;
+};
+
 class Take
 {
 public:
@@ -36,6 +46,7 @@ public:
 	int timeStart;
 	int timeEnd;
 	int timeFrames;
+	int frameDuration;
 
 	QVector3D wX;
 	QVector3D wY;
@@ -55,10 +66,11 @@ public:
 	void Save();
 
 	//void SetTime();
-	void SetFrame(int TimelineFrame, bool DrawMarkers);
+	void SetFrame(int TimelineFrame);
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void Build3DMarkers(int StartFrame, int EndFrame);
-	void BuildExtrinsics(int StartFrame, int EndFrame);	
+	void BuildExtrinsics(int StartFrame, int EndFrame);
+	void BundleAdjust(int StartFrame, int EndFrame);
 	void SaveSSBAFile();
 
 private:
@@ -66,7 +78,7 @@ private:
 	void _ReconfigureTimeline();
 	void _LoadTracker(QString TrackerFileName);
 	void _AdjustRuntime();	
-	Marker3D _triangulate(Marker2D M1, Marker2D M2);
+	//Marker3D _triangulate(Marker2D M1, Marker2D M2);
 	void _ClosestPointsLines(QVector3D P1, QVector3D D1, QVector3D P2, QVector3D D2, QVector3D* C1, QVector3D* C2);
 	void _BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTracker* Tracker, std::vector<MarkerCalib>& Markers, cv::Mat& Pose);
 };

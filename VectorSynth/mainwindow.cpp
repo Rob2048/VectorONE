@@ -7,8 +7,7 @@
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-	_take(0),
-	_drawMarkers(false)
+	_take(0)
 {
 	_deviceListMapper = new QSignalMapper(this);
 
@@ -81,7 +80,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(_timer, &QTimer::timeout, this, &MainWindow::OnTimerTick);
 
 	_timelineTimer = new QTimer();
-	_timelineTimer->start(100);
+	_timelineTimer->start(1000 / 60);
 	connect(_timelineTimer, &QTimer::timeout, this, &MainWindow::OnTimelineTimerTick);
 
 	qDebug() << "Spawn Server Thread from" << QThread::currentThreadId();
@@ -115,14 +114,23 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(ui->btnLoadTake, &QPushButton::clicked, this, &MainWindow::OnLoadTakeClick);
 	connect(ui->btnSaveTake, &QPushButton::clicked, this, &MainWindow::OnSaveTakeClick);
 	connect(ui->btnGenerateMask, &QPushButton::clicked, this, &MainWindow::OnGenerateMaskClicked);
-	connect(ui->btnBuild2D, &QPushButton::clicked, this, &MainWindow::OnBuild2DMarkersClicked);
 	connect(ui->btnBuildFundamental, &QPushButton::clicked, this, &MainWindow::OnBuildFundamentalMatClicked);
+	connect(ui->btnBundleAdjust, &QPushButton::clicked, this, &MainWindow::OnBundleAdjustClicked);
 	connect(ui->btnBuild3D, &QPushButton::clicked, this, &MainWindow::OnBuild3DMarkersClicked);
 	connect(ui->btnAssignWorldBasis, &QPushButton::clicked, this, &MainWindow::OnAssignWorldBasisClicked);
 	
-	// Toolbars.
-	connect(ui->btnDrawVideo, &QToolButton::clicked, this, &MainWindow::OnDrawVideoClicked);
-	connect(ui->btnDrawMarkers, &QToolButton::clicked, this, &MainWindow::OnDrawMarkersClicked);
+	// Tracker view buttons.
+	connect(ui->btnToggleUpdate, &QToolButton::clicked, this, &MainWindow::OnToggleUpdateClicked);
+	connect(ui->btnToggleMask, &QToolButton::clicked, this, &MainWindow::OnToggleMaskClicked);
+	connect(ui->btnTogglePixelGrid, &QToolButton::clicked, this, &MainWindow::OnTogglePixelGridClicked);
+	connect(ui->btnToggleDistortedMarkers, &QToolButton::clicked, this, &MainWindow::OnToggleDistortedMarkersClicked);
+	connect(ui->btnToggleUndistortedMarkers, &QToolButton::clicked, this, &MainWindow::OnToggleUndistortedMarkersClicked);
+	connect(ui->btnToggleReprojectedMarkers, &QToolButton::clicked, this, &MainWindow::OnToggleReprojectedMarkersClicked);
+
+	// Scene view buttons.
+	connect(ui->btnToggleMarkerSources, &QToolButton::clicked, this, &MainWindow::OnToggleMarkerSourcesClicked);
+	connect(ui->btnToggleRays, &QToolButton::clicked, this, &MainWindow::OnToggleRaysClicked);
+	connect(ui->btnToggleExpandedMarkers, &QToolButton::clicked, this, &MainWindow::OnToggleExpandedMarkersClicked);
 
 	// Exposure //ui->horizontalSlider->setEnabled(false);
 	// Frame Sync //ui->horizontalSlider_2->setEnabled(false);
@@ -154,40 +162,6 @@ MainWindow::MainWindow(QWidget* parent) :
 	//connect(ui->chkDrawGuides, &QCheckBox::stateChanged, _serverWorker, &ServerWorker::OnDrawGuidesChanged);
 	//connect(ui->chkMarkers, &QCheckBox::stateChanged, _serverWorker, &ServerWorker::OnDrawMarkersChanged);
 	connect(ui->chkFindCalib, &QCheckBox::stateChanged, _serverWorker, &ServerThreadWorker::OnFindCalibChanged);
-
-	// Device Table
-	/*
-	ui->tblDevices->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
-	ui->tblDevices->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeMode::Stretch);
-	ui->tblDevices->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeMode::ResizeToContents);
-	ui->tblDevices->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeMode::ResizeToContents);
-	ui->tblDevices->setHorizontalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
-	ui->tblDevices->setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
-
-	connect(_deviceListMapper, SIGNAL(mapped(int)), _serverWorker, SLOT(OnViewFeed(int)));
-	*/
-
-	// Take Device Table
-	/*
-	ui->tblTakeDevices->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
-	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeMode::Stretch);
-	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeMode::ResizeToContents);
-	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeMode::ResizeToContents);
-	ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeMode::ResizeToContents);
-	//ui->tblTakeDevices->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeMode::Fixed);
-	//ui->tblDevices->horizontalHeader()->setwi
-	ui->tblTakeDevices->setHorizontalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
-	ui->tblTakeDevices->setVerticalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
-	connect(ui->tblTakeDevices, &QTableWidget::itemSelectionChanged, this, &MainWindow::OnTakeTrackerTableSelectionChanged);
-	*/
-
-	ui->sldTakeSensitivity->setMaximum(255);
-	ui->sldTakeSensitivity->setMinimum(0);
-	connect(ui->sldTakeSensitivity, &QSlider::valueChanged, this, &MainWindow::OnTakeSensitivityChange);
-
-	ui->sldTakeThreshold->setMaximum(255);
-	ui->sldTakeThreshold->setMinimum(0);
-	connect(ui->sldTakeThreshold, &QSlider::valueChanged, this, &MainWindow::OnTakeThresholdChange);
 	
 	// Timeline
 	connect(_timeline, &TimelineWidget::valueChanged, this, &MainWindow::OnTimelineChange);
@@ -232,6 +206,7 @@ void MainWindow::OnTimelineChange(int Value)
 {
 	_timelineRequestedFrame = Value;
 
+	/*
 	int fps = 50;
 	int min = Value / fps / 60;
 	int sec = (Value / fps) % 60;
@@ -240,6 +215,25 @@ void MainWindow::OnTimelineChange(int Value)
 	char buff[64];
 	sprintf(buff, "%d:%02d:%03d", min, sec, frame);
 	ui->lblTimecode->setText(buff);
+	*/
+
+	if (_take)
+	{
+		double totalSeconds = (double)(Value * _take->frameDuration) / 1000000.0;
+		float fps = 1000000.0 / _take->frameDuration;
+
+		int min = totalSeconds / 60;
+		int sec = totalSeconds - min * 60;
+		int msec = (int)(totalSeconds * 1000) % 1000;
+
+		char buff[64];
+		sprintf(buff, "%d:%02d:%03d (%d) %.2f FPS", min, sec, msec, Value, fps);
+		ui->lblTimecode->setText(buff);
+	}
+	else
+	{
+		ui->lblTimecode->setText("(No take)");
+	}
 }
 
 void MainWindow::OnNextFrameClick()
@@ -264,21 +258,24 @@ void MainWindow::OnPrevFrameJumpClick()
 
 void MainWindow::OnPlayClick()
 {	
-	if (_playTimer->isActive())
+	if (_take)
 	{
-		_playTimer->stop();
-	}
-	else
-	{
-		_playTimer->stop();
-		_playFrame = _timeline->selectedFrame;
-		_playTimer->start(1000.0f / 60.0f);
+		if (_playTimer->isActive())
+		{
+			_playTimer->stop();
+		}
+		else
+		{
+			_playTimer->stop();
+			_playFrame = _timeline->selectedFrame;
+			_playTimer->start(1000.0f / 60.0f);
+		}
 	}
 }
 
 void MainWindow::OnPlayTimerTick()
 {	
-	float frameAdvance = (100.0f / 60.0f) * ui->txtPlaySpeed->text().toFloat();
+	float frameAdvance = ((1000000.0 / _take->frameDuration) / 60.0) * ui->txtPlaySpeed->text().toFloat();
 	_playFrame += frameAdvance;
 
 	if ((int)_playFrame >= _timeline->totalFrames)
@@ -293,43 +290,16 @@ void MainWindow::OnPlayTimerTick()
 
 void MainWindow::OnTimelineTimerTick()
 {
-	if (_timelineCurrentFrame != _timelineRequestedFrame)
+	if (_take && _timelineCurrentFrame != _timelineRequestedFrame)
 	{
-		if (_take)
-		{
-			_take->SetFrame(_timelineRequestedFrame, _drawMarkers);
+		_take->SetFrame(_timelineRequestedFrame);
 			
-			_cameraView->timelineFrame = _timelineRequestedFrame;
-			_glView->timelineFrame = _timelineRequestedFrame;
-			_cameraView->take = _take;
+		_cameraView->timelineFrame = _timelineRequestedFrame;
+		_glView->timelineFrame = _timelineRequestedFrame;
+		_cameraView->take = _take;
+		_cameraView->update();
 
-			/*
-			if (_drawMarkers)
-			{	
-				_cameraView->mode = 2;
-			}
-			else
-			{
-				if (_take->trackers.count() == 2)
-				{
-					//_cameraView->camImageA = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-					//_cameraView->camNameA = _take->trackers[0]->name;
-					//_cameraView->camImageB = QImage((uchar*)_take->trackers[1]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-					//_cameraView->camNameB = _take->trackers[1]->name;
-					_cameraView->mode = 1;
-				}
-				else
-				{
-					//_cameraView->camImage = QImage((uchar*)_take->trackers[0]->decoder->GetFrameMatData(), VID_W, VID_H, QImage::Format::Format_RGB888).copy();
-					_cameraView->mode = 0;
-				}
-			}
-			*/
-			
-			_cameraView->update();
-
-			_timelineCurrentFrame = _timelineRequestedFrame;
-		}
+		_timelineCurrentFrame = _timelineRequestedFrame;
 	}
 }	
 
@@ -538,8 +508,13 @@ void MainWindow::OnCalibrationStopClick()
 void MainWindow::OnTimerTick()
 {	
 	QByteArray broadcastMsg = (QString("KineticSynth:") + _localIp.toString()).toUtf8();
-	_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress::Broadcast, 45454);
+	// TODO: Sometimes the 255.255.255.255 broadcast address fails.
+	//_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress::Broadcast, 45454);
+	_udpSocket->writeDatagram(broadcastMsg.data(), broadcastMsg.size(), QHostAddress("192.168.1.255"), 45454);
 	//qDebug() << broadcastMsg;
+
+	//QHostAddress t(QHostAddress::Broadcast);
+	//qDebug() << t.toString();
 
 	for (std::map<int, LiveTracker*>::iterator it = _liveTrackers.begin(); it != _liveTrackers.end(); ++it)
 	{
@@ -576,26 +551,6 @@ void MainWindow::OnSaveTakeClick()
 	_take->Save();
 }
 
-void MainWindow::OnTakeSensitivityChange(int Value)
-{
-	if (_selectedTakeTracker)
-	{
-		_selectedTakeTracker->sensitivity = (float)Value / 255.0f;
-		_selectedTakeTracker->decoder->camSensitivity = (float)Value / 255.0f;
-		_timelineCurrentFrame = -1;
-	}
-}
-
-void MainWindow::OnTakeThresholdChange(int Value)
-{
-	if (_selectedTakeTracker)
-	{
-		_selectedTakeTracker->threshold = (float)Value / 255.0f;
-		_selectedTakeTracker->decoder->camThreshold = (float)Value / 255.0f;
-		_timelineCurrentFrame = -1;
-	}
-}
-
 void MainWindow::OnGenerateMaskClicked()
 {
 	LiveTracker* tracker = GetTracker(_selectedTracker);
@@ -604,14 +559,6 @@ void MainWindow::OnGenerateMaskClicked()
 	{
 		tracker->generateMask();
 		changeMask(tracker);
-	}
-}
-
-void MainWindow::OnBuild2DMarkersClicked()
-{
-	if (_take)
-	{
-		_take->Build2DMarkers(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
 	}
 }
 
@@ -664,18 +611,59 @@ void MainWindow::OnAssignWorldBasisClicked()
 	}
 }
 
-void MainWindow::OnDrawMarkersClicked()
+void MainWindow::OnToggleUpdateClicked()
 {
-	_drawMarkers = true;
-	_timelineCurrentFrame = -1;
-	_timelineTimer->setInterval(1000 / 60);
+	if (ui->btnToggleUpdate->isChecked())	
+	{
+		_timelineTimer->setInterval(1000 / 60);
+	}
+	else
+	{
+		_timelineTimer->setInterval(1000 / 10);
+	}
 }
 
-void MainWindow::OnDrawVideoClicked()
+void MainWindow::OnToggleMaskClicked()
 {
-	_drawMarkers = false;
-	_timelineCurrentFrame = -1;
-	_timelineTimer->setInterval(1000 / 10);
+	_cameraView->setMask(ui->btnToggleMask->isChecked());
+}
+
+void MainWindow::OnToggleDistortedMarkersClicked()
+{
+	_cameraView->showDistortedMarkers = ui->btnToggleDistortedMarkers->isChecked();
+	_cameraView->update();
+}
+
+void MainWindow::OnToggleUndistortedMarkersClicked()
+{
+	_cameraView->showUndistortedMarkers = ui->btnToggleUndistortedMarkers->isChecked();
+	_cameraView->update();
+}
+
+void MainWindow::OnToggleReprojectedMarkersClicked()
+{
+	_cameraView->showReprojectedMarkers = ui->btnToggleReprojectedMarkers->isChecked();
+	_cameraView->update();
+}
+
+void MainWindow::OnTogglePixelGridClicked()
+{
+	_cameraView->setPixelGrid(ui->btnTogglePixelGrid->isChecked());
+}
+
+void MainWindow::OnToggleMarkerSourcesClicked()
+{
+	_glView->showMarkerSources = ui->btnToggleMarkerSources->isChecked();
+}
+
+void MainWindow::OnToggleRaysClicked()
+{
+	_glView->showRays = ui->btnToggleRays->isChecked();
+}
+
+void MainWindow::OnToggleExpandedMarkersClicked()
+{
+	_glView->showExpandedMarkers = ui->btnToggleExpandedMarkers->isChecked();
 }
 
 void MainWindow::OnBuildFundamentalMatClicked()
@@ -683,6 +671,14 @@ void MainWindow::OnBuildFundamentalMatClicked()
 	if (_take)
 	{
 		_take->BuildExtrinsics(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
+	}
+}
+
+void MainWindow::OnBundleAdjustClicked()
+{
+	if (_take)
+	{
+		_take->BundleAdjust(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
 	}
 }
 

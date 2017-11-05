@@ -69,6 +69,7 @@ void Take::LoadTake(QString Name)
 		file.close();
 
 		QJsonObject takeObj = QJsonDocument::fromJson(fileData).object();
+		frameDuration = takeObj["fps"].toInt();
 		wScale = takeObj["world"].toObject()["s"].toDouble();
 		QJsonArray jsonWorldX = takeObj["world"].toObject()["x"].toArray();
 		QJsonArray jsonWorldY = takeObj["world"].toObject()["y"].toArray();
@@ -129,6 +130,7 @@ void Take::Save()
 
 	QJsonObject jsonObj;
 	jsonObj["name"] = "Default Name";
+	jsonObj["fps"] = frameDuration;
 
 	QJsonArray jsonWorldX;
 	jsonWorldX.append(wX.x());
@@ -203,7 +205,7 @@ void Take::_AdjustRuntime()
 	}
 }
 
-void Take::SetFrame(int TimelineFrame, bool DrawMarkers)
+void Take::SetFrame(int TimelineFrame)
 {
 	for (int i = 0; i < trackers.count(); ++i)
 	{
@@ -211,28 +213,27 @@ void Take::SetFrame(int TimelineFrame, bool DrawMarkers)
 
 		int keyFrameIndex;
 		int frameIndex;
-		
-		if (tracker->ConvertTimelineToFrame(TimelineFrame, &keyFrameIndex, &frameIndex))
+
+		if (tracker->mode == 2)
 		{
-			//qDebug() << tracker->name << " - Timeline:" << TimelineFrame << "Index:" << frameIndex << "KeyIndex:" << keyFrameIndex;
+			if (TimelineFrame < tracker->frameCount)
+				tracker->drawMarkerFrameIndex = TimelineFrame;
+		}
+		else if (tracker->mode == 1)
+		{
+			if (tracker->ConvertTimelineToFrame(TimelineFrame, &keyFrameIndex, &frameIndex))
+			{
+				//qDebug() << tracker->name << " - Timeline:" << TimelineFrame << "Index:" << frameIndex << "KeyIndex:" << keyFrameIndex;
 
-			tracker->drawMarkerFrameIndex = frameIndex;
-
-			if (DrawMarkers)
-			{	
-				//tracker->DrawMarkers(frameIndex);
-			}
-			else
-			{	
 				tracker->DecodeFrame(frameIndex, keyFrameIndex);
 				tracker->decoder->ProcessFrame();
 				memcpy(tracker->liveTracker->frameData, tracker->decoder->GetFrameMatData(), VID_W * VID_H * 3);
 			}
-		}
-		else
-		{
-			tracker->decoder->ShowBlankFrame();
-			memcpy(tracker->liveTracker->frameData, tracker->decoder->GetFrameMatData(), VID_W * VID_H * 3);
+			else
+			{
+				tracker->decoder->ShowBlankFrame();
+				memcpy(tracker->liveTracker->frameData, tracker->decoder->GetFrameMatData(), VID_W * VID_H * 3);
+			}
 		}
 	}
 }
@@ -249,6 +250,7 @@ void Take::Build2DMarkers(int StartFrame, int EndFrame)
 	qDebug() << "Done Building Markers";
 }
 
+/*
 Marker3D Take::_triangulate(Marker2D M1, Marker2D M2)
 {
 	std::vector<cv::Point2d> trackerPoints[2];
@@ -270,6 +272,7 @@ Marker3D Take::_triangulate(Marker2D M1, Marker2D M2)
 
 	return m;
 }
+*/
 
 // Returns the squared distance between point c and segment ab
 float SqDistPointSegment(QVector2D A, QVector2D B, QVector2D C)
@@ -351,16 +354,20 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 
 	for (int i = 0; i < trackers.count(); ++i)
 	{
-		//trackers[i]->BuildEpilines(StartFrame, EndFrame);
 		trackers[i]->BuildRays(StartFrame, EndFrame);
 	}
+
+	float pixelTolerance = 3.0f;
+	float pixelToleranceSqr = pixelTolerance * pixelTolerance;
+	float markerGroupingTolerance = 0.02f; // TODO: Scale by world scale.
+	float markerGropuingToleranceSqr = markerGroupingTolerance * markerGroupingTolerance;
 
 	// Build markers from contributing cameras;
 	for (int i = StartFrame; i <= EndFrame; ++i)
 	{
 		// Get every ray at this frame and do intersections.
 		QList<Marker2D*> markers2d;
-
+		
 		for (int iT = 0; iT < trackers.size(); ++iT)
 		{
 			VidFrameData* trackerFrame = trackers[iT]->GetLocalFrame(i);
@@ -373,6 +380,8 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 				markers2d.push_back(&trackerFrame->newMarkers[iM]);
 			}
 		}
+
+		QList<MarkerGroup> markerGroups;
 
 		for (int oM = 0; oM < markers2d.size(); ++oM)
 		{
@@ -388,55 +397,94 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 				QVector3D c2;
 				_ClosestPointsLines(trackers[a->trackerId]->worldPos, a->worldRayD, trackers[b->trackerId]->worldPos, b->worldRayD, &c1, &c2);
 
-				QVector3D mPos = (c1 + c2) / 2;
+				// Check that both closest line points are within threshold in pixels.
+				// Project c2 onto tracker A
+				QVector2D projB = trackers[a->trackerId]->ProjectPoint(c2);
+				float distB = (a->pos - projB).lengthSquared();
 
-				Marker3D m = {};
-				m.pos = mPos;
-				m.sources.push_back(*a);
-				m.sources.push_back(*b);
-				markers[i].push_back(m);
-			}
-		}
+				// Project c1 onto tracker B
+				QVector2D projA = trackers[b->trackerId]->ProjectPoint(c1);
+				float distA = (b->pos - projA).lengthSquared();
 
-		/*
-		VidFrameData* a = trackers[0]->GetLocalFrame(i);
-		VidFrameData* b = trackers[1]->GetLocalFrame(i);
-
-		if (a && b)
-		{
-			// Go through all rays and build markers at intersections.
-			if (a->newMarkers.count() > 0 && b->newMarkers.count() > 0)
-			{	
-				// Go through all epilines in cam A and look for points in cam B.
-				for (int e = 0; e < a->epiLines.count(); ++e)
+				if (distA <= pixelToleranceSqr && distB <= pixelToleranceSqr)
 				{
-					int closestIndex = -1;
-					float closestD = 10000.0f;
+					QVector3D mPos = (c1 + c2) / 2;
 
-					EpipolarLine line = a->epiLines[e];
-					float y1 = -(line.a * 0 + line.c) / line.b;
-					float y2 = -(line.a * 1000 + line.c) / line.b;
+					/*
+					Marker3D m = {};
+					m.pos = mPos;
+					m.sources.push_back(*a);
+					m.sources.push_back(*b);
+					markers[i].push_back(m);
+					//*/
 
-					for (int p = 0; p < b->newMarkers.count(); ++p)
+					//*
+					// Combine markers within range of each other.
+					bool grouped = false;
+					for (int iG = 0; iG < markerGroups.size(); ++iG)
 					{
-						float dist = SqDistPointSegment(QVector2D(0, y1), QVector2D(1000, y2), b->newMarkers[p].pos);
-
-						if (dist <= 10.0f && dist < closestD)
+						if ((markerGroups[iG].pos - mPos).lengthSquared() <= markerGropuingToleranceSqr)
 						{
-							closestD = dist;
-							closestIndex = p;
+							grouped = true;
+
+							markerGroups[iG].count++;
+							markerGroups[iG].avgPos += mPos;
+
+							bool foundA = false;
+							bool foundB = false;
+
+							for (int iS = 0; iS < markerGroups[iG].sources.size(); ++iS)
+							{
+								if (markerGroups[iG].sources[iS].markerId == a->markerId &&
+									markerGroups[iG].sources[iS].trackerId == a->trackerId)
+								{
+									foundA = true;
+								}
+
+								if (markerGroups[iG].sources[iS].markerId == b->markerId &&
+									markerGroups[iG].sources[iS].trackerId == b->trackerId)
+								{
+									foundB = true;
+								}
+							}
+
+							if (!foundA)
+							{
+								markerGroups[iG].sources.push_back(*a);
+							}
+
+							if (!foundB)
+							{
+								markerGroups[iG].sources.push_back(*b);
+							}
 						}
 					}
 
-					if (closestIndex != -1)
+					if (!grouped)
 					{
-						qDebug() << "closest" << closestD;
-						markers[i].push_back(_triangulate(a->newMarkers[e], b->newMarkers[closestIndex]));
+						MarkerGroup mg = {};
+						mg.count = 1;
+						mg.pos = mPos;
+						mg.avgPos = mPos;
+						mg.sources.push_back(*a);
+						mg.sources.push_back(*b);
+						markerGroups.push_back(mg);
 					}
+					//*/
 				}
 			}
 		}
-		*/
+
+		//*
+		// Distribute groups into 3D markers.
+		for (int iG = 0; iG < markerGroups.size(); ++iG)
+		{
+			Marker3D m = {};
+			m.pos = markerGroups[iG].avgPos /= markerGroups[iG].count;
+			m.sources = markerGroups[iG].sources;
+			markers[i].push_back(m);
+		}
+		//*/
 	}
 
 	/*
@@ -451,7 +499,7 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 
 void Take::SaveSSBAFile()
 {
-	QFile file("ssba\\unrefined.txt");
+	QFile file("unrefined.txt");
 	if (file.open(QIODevice::ReadWrite | QIODevice::Text)) 
 	{
 		QTextStream stream(&file);
@@ -533,6 +581,11 @@ void Take::SaveSSBAFile()
 
 void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 {
+	for (int t = 0; t < trackers.count(); ++t)
+	{
+		trackers[t]->UndistortMarkers(StartFrame, EndFrame);
+	}
+
 	std::vector<std::vector<MarkerCalib>> markerSets;
 	std::vector<cv::Mat> poses;
 
@@ -556,11 +609,64 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 		*/
 	}
 
-	// Scale/match pair poses.
-	for (int i = 1; i < markerSets.size(); ++i)
+	// Scale/match pair poses to first pair.
+	for (int iS = 1; iS < markerSets.size(); ++iS)
 	{
-		// Scale to previous pair.
-		//cv::estimateAffine3D
+		// TODO: Investigate cv::estimateAffine3D.
+
+		qDebug() << "Marker sets" << markerSets[0].size() << markerSets[iS].size();
+		int mcIdx = 0;
+		QVector3D rootA;
+		QVector3D rootB;
+		bool foundRoot = false;
+		float scaleAvg = 0.0f;
+		int scaleCount = 0;
+
+		for (int i = 0; i < markerSets[0].size(); ++i)
+		{
+			while (mcIdx < markerSets[iS].size() && markerSets[iS][mcIdx].frame < markerSets[0][i].frame)
+			{
+				++mcIdx;
+			}
+
+			if (mcIdx >= markerSets[iS].size())
+				break;
+
+			if (markerSets[0][i].frame == markerSets[iS][mcIdx].frame)
+			{
+				//qDebug() << "Compare" << i << mcIdx << markerSets[0][i].frame << markerSets[1][mcIdx].frame;
+
+				if (!foundRoot)
+				{
+					rootA = markerSets[0][i].pos;
+					rootB = markerSets[iS][mcIdx].pos;
+					foundRoot = true;
+				}
+				else
+				{
+					QVector3D pA = markerSets[0][i].pos;
+					QVector3D pB = markerSets[iS][mcIdx].pos;
+
+					float dA = (pA - rootA).length();
+					float dB = (pB - rootB).length();
+
+					float s = dA / dB;
+
+					scaleAvg += s;
+					++scaleCount;
+
+					qDebug() << "Scale " << s;
+				}
+			}
+		}
+
+		scaleAvg /= scaleCount;
+		qDebug() << "Avg scale:" << scaleAvg;
+
+		// Manipulate col3 of pose.
+		poses[iS].at<double>(0, 3) *= scaleAvg;
+		poses[iS].at<double>(1, 3) *= scaleAvg;
+		poses[iS].at<double>(2, 3) *= scaleAvg;
 	}
 	
 	// Apply poses back to trackers.
@@ -568,25 +674,107 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 	{	
 		trackers[t]->SetPose(poses[t - 1]);
 	}
+}
 
-	// TOOD: Get all 3d markers.
+void Take::BundleAdjust(int StartFrame, int EndFrame)
+{
+	// Get 3D Markers from first pair.
+	std::vector<MarkerCalib> temp3DMarkers;
+	std::vector<cv::Point2f> trackerPoints[2];
+	std::vector<int> pointFrameIndex;
+	int tfIndex[2] = { StartFrame, StartFrame };
+	TakeTracker* tracker0 = trackers[0];
+	TakeTracker* tracker1 = trackers[1];
+	
+	//---------------------------------------------------------------------------------------------------
+	// Find corresponding points in frames.
+	//---------------------------------------------------------------------------------------------------
+	while (true)
+	{
+		VidFrameData* t0 = &tracker0->vidFrameData[tfIndex[0]];
+		VidFrameData* t1 = &tracker1->vidFrameData[tfIndex[1]];
+
+		int tfT0 = t0->index;
+		int tfT1 = t1->index;
+
+		// Skip dummy frames.
+		if (t0->type == 3 || t0->type == 3)
+		{
+			if (t0->type == 3) tfIndex[0]++;
+			if (t1->type == 3) tfIndex[1]++;
+
+			if (tfIndex[0] > EndFrame || tfIndex[1] > EndFrame)
+				break;
+
+			continue;
+		}
+
+		if (tfT0 < tfT1)
+		{
+			tfIndex[0]++;
+		}
+		else if (tfT0 > tfT1)
+		{
+			tfIndex[1]++;
+		}
+		else
+		{
+			if (tfT0 > EndFrame)
+			{
+				break;
+			}
+			else if (tfT0 >= StartFrame)
+			{
+				if (t0->newMarkers.count() == 1 && t1->newMarkers.count() == 1)
+				{
+					//qDebug() << "Add markers - Frame:" << tfT0 << t0->newMarkers[0].pos << t1->newMarkers[0].pos;
+
+					trackerPoints[0].push_back(cv::Point2f(t0->newMarkers[0].pos.x(), t0->newMarkers[0].pos.y()));
+					trackerPoints[1].push_back(cv::Point2f(t1->newMarkers[0].pos.x(), t1->newMarkers[0].pos.y()));
+					pointFrameIndex.push_back(tfT0);
+				}
+			}
+
+			tfIndex[0]++;
+			tfIndex[1]++;
+		}
+	}
+	
+	cv::Mat Q;
+	cv::triangulatePoints(trackers[0]->projMat, trackers[1]->projMat, trackerPoints[0], trackerPoints[1], Q);
+
+	temp3DMarkers.clear();
+	for (int i = 0; i < Q.size().width; ++i)
+	{
+		float w = Q.at<float>(3, i);
+		float x = Q.at<float>(0, i) / w;
+		float y = Q.at<float>(1, i) / w;
+		float z = Q.at<float>(2, i) / w;
+
+		MarkerCalib m = {};
+		m.pos = QVector3D(x, y, z);
+		m.frame = pointFrameIndex[i];
+		temp3DMarkers.push_back(m);
+	}
+
+	// Every camera needs to see the markers for bundle adjust?
 
 	// Refine
 	// Build SSBA file.
 	// Inputs: Cam, dist, pose, 3D Markers, 2D Markers (distorted)
-	QFile file("ssba\\unrefined.txt");
+	QFile file("unrefined.txt");
 	if (file.open(QIODevice::ReadWrite | QIODevice::Text))
 	{
 		QTextStream stream(&file);
 
-		int markerCount3d = markerSets[0].size();
+		int markerCount3d = temp3DMarkers.size();
 		int markerCount2d = 0;
 
 		// Count 2D markers.
 		for (int t = 0; t < trackers.size(); ++t)
 		{
 			for (int v = 0; v < trackers[t]->vidFrameData.size(); ++v)
-			{	
+			{
 				if (trackers[t]->vidFrameData[v].type == 3)
 					continue;
 
@@ -619,9 +807,9 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 		}
 
 		// 3D Markers.
-		for (int i = 0; i < markerSets[0].size(); ++i)
+		for (int i = 0; i < temp3DMarkers.size(); ++i)
 		{
-			MarkerCalib m = markerSets[0][i];
+			MarkerCalib m = temp3DMarkers[i];
 			stream << m.frame << " " << m.pos.x() << " " << m.pos.y() << " " << m.pos.z() << endl;
 		}
 
@@ -641,7 +829,7 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 			stream << endl;
 		}
 
-		// Undistorted 2D markers.
+		// Distorted 2D markers.
 		for (int t = 0; t < trackers.size(); ++t)
 		{
 			for (int v = 0; v < trackers[t]->vidFrameData.size(); ++v)
@@ -666,14 +854,17 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 	}
 
 	// Run SSBA.
+	QFile tempRefFile("refined.txt");
+	tempRefFile.remove();
+
 	QProcess ssbaProcess;
-	ssbaProcess.start("ssba\\BundleVarying.exe ssba\\unrefined.txt radial");
+	ssbaProcess.start("BundleVarying.exe unrefined.txt tangential");
 	if (!ssbaProcess.waitForStarted())
 	{
 		qDebug() << "Could not start SSBA process";
 		return;
 	}
-	
+
 	if (!ssbaProcess.waitForFinished())
 	{
 		qDebug() << "SSBA process failed";
@@ -683,8 +874,13 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 	QByteArray err = ssbaProcess.readAllStandardError();
 	QByteArray stdOut = ssbaProcess.readAllStandardOutput();
 	QByteArray result = ssbaProcess.readAll();
+	//qDebug() << "SSBA completed:" << result << err << stdOut;
 
-	qDebug() << "SSBA completed:" << result << err << stdOut;
+	QStringList lines = QString::fromUtf8(stdOut).split("\r\n");
+	for (int i = 0; i < lines.size(); ++i)
+	{
+		qDebug() << lines[i];
+	}
 
 	// Load SSBA results.
 	QFile refFile("refined.txt");
@@ -692,19 +888,19 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 	if (refFile.open(QIODevice::ReadOnly | QIODevice::Text))
 	{
 		QTextStream s(&refFile);
-		
+
 		// Header.
 		int markers3dCount = 0;
 		int viewsCount = 0;
 		int markers2dCount = 0;
-		
+
 		s >> markers3dCount >> viewsCount >> markers2dCount;
 		qDebug() << markers3dCount << viewsCount << markers2dCount;
 
 		// Camera & distortion.
 		for (int v = 0; v < trackers.count(); ++v)
 		{
-			cv::Mat camMat = cv::Mat::eye(3, 3, CV_64F);			
+			cv::Mat camMat = cv::Mat::eye(3, 3, CV_64F);
 			s >> camMat.at<double>(0, 0); // fx
 			s >> camMat.at<double>(0, 1); // skew
 			s >> camMat.at<double>(0, 2); // cx
@@ -776,7 +972,7 @@ void Take::_BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTrack
 	std::vector<cv::Point2f> trackerPoints[2];
 	std::vector<cv::Point2f> distTrackerPoints[2];
 	std::vector<int> pointFrameIndex;
-	int tfIndex[2] = {};
+	int tfIndex[2] = { StartFrame, StartFrame };
 	TakeTracker* tracker0 = Root;
 	TakeTracker* tracker1 = Tracker;
 
@@ -788,15 +984,18 @@ void Take::_BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTrack
 		VidFrameData* t0 = &tracker0->vidFrameData[tfIndex[0]];
 		VidFrameData* t1 = &tracker1->vidFrameData[tfIndex[1]];
 
-		// NOTE: Global = local + offset.
 		int tfT0 = t0->index;
 		int tfT1 = t1->index;
 
-		// Skip dummy frames (dropped frame).
+		// Skip dummy frames.
 		if (t0->type == 3 || t0->type == 3)
 		{
 			if (t0->type == 3) tfIndex[0]++;
 			if (t1->type == 3) tfIndex[1]++;
+
+			if (tfIndex[0] > EndFrame || tfIndex[1] > EndFrame)
+				break;
+
 			continue;
 		}
 		

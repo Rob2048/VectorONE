@@ -75,11 +75,12 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	tracker->liveTracker = LiveTracker;
 	tracker->name = trackerObj["name"].toString();
 	tracker->exposure = trackerObj["exposure"].toInt();
-	tracker->fps = trackerObj["fps"].toInt();
 	tracker->iso = trackerObj["iso"].toInt();
 	tracker->threshold = trackerObj["threshold"].toDouble();
 	tracker->sensitivity = trackerObj["sensitivity"].toDouble();
 	tracker->frameCount = 0;
+	tracker->vidPlaybackFrame = 0;
+	tracker->mode = 0;
 
 	LiveTracker->loaded = true;
 	LiveTracker->id = tracker->id;
@@ -147,97 +148,15 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 
 	tracker->SetPose(pose);
 
-#if 0
-	//---------------------------------------------------------------------------------------------------------------
-	// Load and process refined data.
-	//---------------------------------------------------------------------------------------------------------------
-	Decoder* d = tracker->decoder;
-
-	d->refR = cv::Mat(3, 3, CV_64F);
-	d->refT = cv::Mat(3, 1, CV_64F);
-	d->refD = cv::Mat::zeros(4, 1, CV_64F);
-	d->refK = cv::Mat::eye(3, 3, CV_64F);
-	d->refRt = cv::Mat::eye(3, 4, CV_64F);
-
-	for (int iY = 0; iY < 4; ++iY)
+	QString maskStr = trackerObj["mask"].toString();
+	for (int i = 0; i < maskStr.size(); ++i)
 	{
-		for (int iX = 0; iX < 3; ++iX)
-		{
-			d->refRt.at<double>(iX, iY) = jsonExtrinRt[iX * 4 + iY].toDouble();
-		}
+		tracker->mask[i] = maskStr[i].toLatin1() - 48;
 	}
-
-	for (int iY = 0; iY < 3; ++iY)
-	{
-		for (int iX = 0; iX < 3; ++iX)
-		{
-			d->refR.at<double>(iX, iY) = d->refRt.at<double>(iX, iY);
-		}
-	}
-
-	for (int iX = 0; iX < 3; ++iX)
-	{
-		d->refT.at<double>(iX, 0) = d->refRt.at<double>(iX, 3);
-	}
-
-	for (int iX = 0; iX < 4; ++iX)
-	{
-		d->refD.at<double>(iX) = jsonExtrinD[iX].toDouble();
-	}
-
-	for (int iY = 0; iY < 3; ++iY)
-	{
-		for (int iX = 0; iX < 3; ++iX)
-		{
-			d->refK.at<double>(iX, iY) = jsonExtrinK[iY * 3 + iX].toDouble();
-		}
-	}
-
-	d->refOptK = cv::getOptimalNewCameraMatrix(d->refK, d->refD, cv::Size(VID_W, VID_H), 0.0, cv::Size(VID_W, VID_H), NULL, true);
-
-	cv::Mat trueT = -(d->refR).t() * d->refT;
-	d->refPu = cv::Mat(3, 4, d->refR.type());
-	d->refPu(cv::Range::all(), cv::Range(0, 3)) = d->refR * 1.0;
-	d->refPu.col(3) = d->refT * 1.0;
-
-	d->refP = d->refOptK * d->refPu.clone();
-
-	d->refWorldMat(0, 0) = d->refR.at<double>(0, 0);
-	d->refWorldMat(1, 0) = d->refR.at<double>(0, 1);
-	d->refWorldMat(2, 0) = d->refR.at<double>(0, 2);
-	d->refWorldMat(3, 0) = 0;
-
-	d->refWorldMat(0, 1) = d->refR.at<double>(1, 0);
-	d->refWorldMat(1, 1) = d->refR.at<double>(1, 1);
-	d->refWorldMat(2, 1) = d->refR.at<double>(1, 2);
-	d->refWorldMat(3, 1) = 0;
-
-	d->refWorldMat(0, 2) = d->refR.at<double>(2, 0);
-	d->refWorldMat(1, 2) = d->refR.at<double>(2, 1);
-	d->refWorldMat(2, 2) = d->refR.at<double>(2, 2);
-	d->refWorldMat(3, 2) = 0;
-
-	d->refWorldMat(0, 3) = trueT.at<double>(0);
-	d->refWorldMat(1, 3) = trueT.at<double>(1);
-	d->refWorldMat(2, 3) = trueT.at<double>(2);
-	d->refWorldMat(3, 3) = 1;
-
-	QVector4D hwPos = d->refWorldMat * QVector4D(0, 0, 0, 1);
-
-	d->refWorldPos.setX(hwPos.x() / hwPos.w());
-	d->refWorldPos.setY(hwPos.y() / hwPos.w());
-	d->refWorldPos.setZ(hwPos.z() / hwPos.w());
+	LiveTracker->setMask(tracker->mask);
+	memcpy(tracker->decoder->frameMaskData, tracker->mask, sizeof(mask));
 
 	/*
-	stringstream ss;
-	ss << tracker->rtMat << endl << endl << tracker->decoder->refinedMat << endl << endl
-		<< tracker->decoder->refR << endl << endl << tracker->decoder->refT << endl << endl;
-	qDebug() << "Check Mats:" << ss.str().c_str();
-	*/
-
-	//---------------------------------------------------------------------------------------------------------------
-#endif
-
 	char fileName[256];
 	QString maskFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".mask";
 	FILE* maskFile = fopen(maskFilePath.toLatin1(), "rb");
@@ -249,80 +168,108 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		memcpy(tracker->decoder->frameMaskData, tracker->mask, sizeof(mask));
 		fclose(maskFile);
 	}
+	*/
 
 	QString infoFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".trakvid";
 	FILE* vidFile = fopen(infoFilePath.toLatin1(), "rb");
 
-	fseek(vidFile, 0, SEEK_END);
-	int dataSize = ftell(vidFile);
-	fseek(vidFile, 0, SEEK_SET);
-	tracker->takeClipData = new uint8_t[dataSize];
-	fread(tracker->takeClipData, dataSize, 1, vidFile);
-	fclose(vidFile);
-
-	int wp = 0;
-	int rp = 0;
-	tracker->vidFrameData.clear();
-	bool nextFrameKey = false;
-
-	int prevTime = 0;
-	bool prevFrameWasData = false;
-	int prevWritePtr = 0;
-	int prevSize = 0;
-
-	while (rp < dataSize)
+	if (vidFile)
 	{
-		if (rp >= dataSize - 20)
-			break;
+		tracker->mode = 1;
 
-		uint8_t* md = tracker->takeClipData + rp;
-		/*
-		int size = md[3] << 24 | md[2] << 16 | md[1] << 8 | md[0];
-		int type = md[7] << 24 | md[6] << 16 | md[5] << 8 | md[4];
-		int time = md[11] << 24 | md[10] << 16 | md[9] << 8 | md[8];
-		rp += 12;
-		//*/
-		//*
-		int size = md[3] << 24 | md[2] << 16 | md[1] << 8 | md[0];
-		int type = md[7] << 24 | md[6] << 16 | md[5] << 8 | md[4];
-		int tempAvgMasterOffset = md[11] << 24 | md[10] << 16 | md[9] << 8 | md[8];
-		int64_t frameId = md[19] << 56 | md[18] << 48 | md[17] << 40 | md[16] << 32 | md[15] << 24 | md[14] << 16 | md[13] << 8 | md[12];
-		rp += 20;
-		//int time = frameId * 19941;
-		int time = frameId * 9970;
-		//*/
+		fseek(vidFile, 0, SEEK_END);
+		int dataSize = ftell(vidFile);
+		fseek(vidFile, 0, SEEK_SET);
+		tracker->takeClipData = new uint8_t[dataSize];
+		fread(tracker->takeClipData, dataSize, 1, vidFile);
+		fclose(vidFile);
 
-		if (rp + size >= dataSize)
-			break;
+		int wp = 0;
+		int rp = 0;
+		bool prevFrameWasData = false;
+		int prevWritePtr = 0;
+		int prevSize = 0;
 
-		memcpy(tracker->takeClipData + wp, tracker->takeClipData + rp, size);
-		rp += size;
+		tracker->vidFrameData.clear();
 
-		//qDebug() << frameId << type << size;
-
-		if (type == 2)
+		while (rp < dataSize)
 		{
-			// Skip data frame, but remember wp for next frame start.
-			prevFrameWasData = true;
-			prevWritePtr = wp;
-			prevSize = size;
+			if (rp >= dataSize - 20)
+				break;
+
+			uint8_t* md = tracker->takeClipData + rp;
+			int size = *(int*)&md[0];
+			int type = *(int*)&md[4];
+			float avgMasterOffset = *(float*)&md[8];
+			int64_t frameId = *(int64_t*)&md[12];
+			rp += 20;
+
+			if (rp + size >= dataSize)
+				break;
+
+			memcpy(tracker->takeClipData + wp, tracker->takeClipData + rp, size);
+			rp += size;
+
+			if (type == 2)
+			{
+				// Skip data frame, but remember wp for next frame start.
+				prevFrameWasData = true;
+				prevWritePtr = wp;
+				prevSize = size;
+			}
+			else
+			{
+				while (tracker->frameCount < frameId)
+				{
+					// Dummy Frame.
+					VidFrameData vfdDummy = {};
+					vfdDummy.type = 3;
+					vfdDummy.index = tracker->frameCount++;
+					vfdDummy.size = 0;
+					vfdDummy.bufferPosition = 0;
+					tracker->vidFrameData.push_back(vfdDummy);
+				}
+
+				VidFrameData vfd = {};
+				vfd.type = type;
+				vfd.index = tracker->frameCount++;
+				vfd.size = size;
+				vfd.bufferPosition = wp;
+
+				if (prevFrameWasData)
+				{
+					prevFrameWasData = false;
+					vfd.bufferPosition = prevWritePtr;
+					vfd.size += prevSize;
+				}
+
+				tracker->vidFrameData.push_back(vfd);
+			}
+
+			wp += size;
 		}
-		else
-		{
-			int dt = time - prevTime;
-			int dtMs = (dt + 500) / 1000;
-			//int frameProgress = dtMs / (1000 / tracker->fps);
-			//int frameProgress = dtMs / (19941 / 1000);
-			int tempDummies = frameId - tracker->frameCount;
-			prevTime = time;
+	}
 
-			//while (frameProgress-- > 1)
-			while (tempDummies-- > 0)
+	infoFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".trakblobs";
+	FILE* blobFile = fopen(infoFilePath.toLatin1(), "rb");
+
+	if (blobFile)
+	{	
+		tracker->mode = 2;
+
+		while (!feof(blobFile))
+		{
+			int frameSize;
+			fread(&frameSize, sizeof(frameSize), 1, blobFile);
+
+			blobDataHeader header;
+			fread(&header, sizeof(header), 1, blobFile);
+			
+			while (tracker->frameCount < header.frameId)
 			{
 				// Dummy Frame.
 				VidFrameData vfdDummy = {};
 				vfdDummy.type = 3;
-				vfdDummy.time = time;
 				vfdDummy.index = tracker->frameCount++;
 				vfdDummy.size = 0;
 				vfdDummy.bufferPosition = 0;
@@ -330,33 +277,45 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 			}
 
 			VidFrameData vfd = {};
-			vfd.type = type;
-			vfd.time = time;
+			vfd.type = 0;
 			vfd.index = tracker->frameCount++;
-			vfd.size = size;
-			vfd.bufferPosition = wp;
+			vfd.size = 0;
+			vfd.bufferPosition = 0;
 			
-			if (prevFrameWasData)
+			for (int i = 0; i < header.blobCount; ++i)
 			{
-				prevFrameWasData = false;
-				vfd.bufferPosition = prevWritePtr;
-				vfd.size += prevSize;
+				blob b;
+				fread(&b, sizeof(b), 1, blobFile);
+
+				Marker2D marker = {};
+				marker.pos = QVector2D(b.cX, b.cY);
+				marker.bounds = QVector4D(b.minX, b.minY, b.maxX, b.maxY);
+				marker.distPos = QVector2D(b.cX, b.cY);
+				marker.trackerId = Id;
+				marker.markerId = vfd.newMarkers.size();
+				vfd.newMarkers.push_back(marker);
 			}
 
 			tracker->vidFrameData.push_back(vfd);
 
-			//qDebug() << "Frame - Index:" << vfd.index << "DT:" << dt << "(" << dtMs << ") Type:" << vfd.type << "Size:" << vfd.size;
+			for (int i = 0; i < header.foundRegionCount; ++i)
+			{
+				region r;
+				fread(&r, sizeof(r), 1, blobFile);
+			}
+			
+			//qDebug() << "TRAKBLOBS" << header.frameId << header.blobCount << header.foundRegionCount;
 		}
 
-		wp += size;
-
-		//qDebug() << "Tracker:" << TakeId << "Frame Data:" << tracker->vidFrameData.count() << size << "bytes" << type << time << "us";
+		fclose(blobFile);
 	}
-
-	tracker->vidPlaybackFrame = 0;
-
+	else
+	{
+		qDebug() << "No blobs file";
+	}
+	
+	/*
 	QFile m2dFile("project/" + TakeName + "/" + QString::number(Serial) + ".m2d");
-
 	if (m2dFile.open(QIODevice::ReadOnly))
 	{
 		QDataStream stream(&m2dFile);
@@ -392,14 +351,14 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 				tracker->vidFrameData[i].newMarkers.push_back(marker);
 			}
 		}
-		
+
 		m2dFile.close();
 	}
 	else
 	{
-		qDebug() << "No 2D Markers file";
+		qDebug() << "No 2D markers file";
 	}
-
+	*/
 
 	qDebug() << "Tracker: Loaded" << Serial;
 
@@ -407,7 +366,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	for (int i = 0; i < tracker->vidFrameData.count(); ++i)
 	{
 		VidFrameData* vfdp = &tracker->vidFrameData[i];
-		qDebug() << "Post - Index:" << i << "Frame:" << vfdp->index << "Type:" << vfdp->type << "Time:" << vfdp->time;
+		qDebug() << "Post - Index:" << i << "Frame:" << vfdp->index << "Type:" << vfdp->type;
 	}
 	//*/
 	
@@ -432,7 +391,7 @@ void TakeTracker::SetCamDist(cv::Mat Cam, cv::Mat Dist)
 
 	std::stringstream s;
 	s << camMat << "\n\n" << camMatOpt;
-	qDebug() << "OPT" << s.str().c_str();
+	qDebug() << "New cam/dist:" << s.str().c_str();
 
 	projMat = camMatOpt * rtMat;
 }
@@ -541,11 +500,17 @@ void TakeTracker::Save()
 
 	QJsonObject jsonObj;
 	jsonObj["name"] = name;
-	jsonObj["fps"] = fps;
 	jsonObj["exposure"] = exposure;
 	jsonObj["iso"] = iso;
 	jsonObj["threshold"] = threshold;
 	jsonObj["sensitivity"] = sensitivity;
+
+	QString maskString;
+	for (int i = 0; i < sizeof(mask); ++i)
+	{
+		maskString += mask[i] + 48;
+	}
+	jsonObj["mask"] = maskString;
 	
 	QJsonArray jsonIntrinMat;
 	jsonIntrinMat.append(camMat.at<double>(0, 0));
@@ -621,6 +586,7 @@ void TakeTracker::Save()
 	file.write(jsonBytes);
 	file.close();
 
+	/*
 	QFile m2dFile("project/" + takeName + "/" + QString::number(serial) + ".m2d");
 
 	if (!m2dFile.open(QIODevice::WriteOnly))
@@ -633,15 +599,6 @@ void TakeTracker::Save()
 
 	for (int i = 0; i < vidFrameData.count(); ++i)
 	{
-		/*
-		m2dStream << vidFrameData[i].markers.count();
-
-		for (int m = 0; m < vidFrameData[i].markers.count(); ++m)
-		{
-			m2dStream << vidFrameData[i].markers[m];
-		}
-		*/
-
 		m2dStream << vidFrameData[i].newMarkers.count();
 
 		for (int iM = 0; iM < vidFrameData[i].newMarkers.count(); ++iM)
@@ -652,6 +609,7 @@ void TakeTracker::Save()
 	}
 
 	m2dFile.close();
+	*/
 }
 
 void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
@@ -754,12 +712,13 @@ void TakeTracker::UndistortMarkers(int StartFrame, int EndFrame)
 			cv::undistortPoints(matPoint, matOutPoints, camMat, distCoefs, cv::noArray(), camMatOpt);
 			//cv::undistortPoints(matPoint, matOutPoints, camMatOpt, decoder->_calibDistCoeffs, cv::noArray(), camMatOpt);
 
-			// Clip markers.
+			// TODO: Clip markers.
 			for (int j = 0; j < matOutPoints.size().width; ++j)
 			{
 				cv::Point2f p = matOutPoints.at<cv::Point2f>(j);
 
-				if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
+				// TODO: Check for bounds clipping, need to remove marker.
+				//if (p.x >= 0 && p.x < VID_W && p.y >= 0 && p.y < VID_H)
 				{
 					vidFrameData[i].newMarkers[j].pos = QVector2D(p.x, p.y);
 				}
@@ -869,11 +828,6 @@ bool TakeTracker::ConvertTimelineToFrame(int TimelineFrame, int* KeyFrameIndex, 
 	return false;
 }
 
-void TakeTracker::DrawMarkers(int FrameIndex)
-{
-
-}
-
 VidFrameData* TakeTracker::GetLocalFrame(int TimelineFrame)
 {
 	int localFrame = TimelineFrame;
@@ -882,4 +836,21 @@ VidFrameData* TakeTracker::GetLocalFrame(int TimelineFrame)
 		return 0;
 
 	return &vidFrameData[localFrame];
+}
+
+QVector2D TakeTracker::ProjectPoint(QVector3D P)
+{
+	cv::Mat wp(4, 1, CV_64F);
+	wp.at<double>(0) = P.x();
+	wp.at<double>(1) = P.y();
+	wp.at<double>(2) = P.z();
+	wp.at<double>(3) = 1.0;
+
+	cv::Mat imgPt = projMat * wp;
+
+	QVector2D result;
+	result.setX(imgPt.at<double>(0) / imgPt.at<double>(2));
+	result.setY(imgPt.at<double>(1) / imgPt.at<double>(2));
+
+	return result;
 }

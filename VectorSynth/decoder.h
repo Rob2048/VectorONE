@@ -37,6 +37,7 @@ class Marker2D
 {
 public:
 
+	int				markerId;
 	int				trackerId;
 	QVector2D		pos;	
 	QVector2D		distPos;

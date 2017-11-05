@@ -16,6 +16,7 @@
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QDockWidget>
 #include <QtWidgets/QFormLayout>
+#include <QtWidgets/QFrame>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLabel>
@@ -44,12 +45,13 @@ public:
     QVBoxLayout *verticalLayout_11;
     QPushButton *btnResetFrameIds;
     QPushButton *btnStartRecording;
+    QFormLayout *formLayout_3;
+    QLabel *label_7;
+    QLineEdit *txtFps;
     QLabel *label_13;
     QFormLayout *formLayout;
     QLabel *label_12;
     QLineEdit *txtId;
-    QLabel *label_7;
-    QLineEdit *txtFps;
     QLabel *label;
     QLineEdit *txtExposure;
     QLabel *label_6;
@@ -93,8 +95,15 @@ public:
     QWidget *trackerViewMain;
     QVBoxLayout *verticalLayout_2;
     QHBoxLayout *toolbar;
-    QToolButton *btnDrawVideo;
-    QToolButton *btnDrawMarkers;
+    QToolButton *btnToggleUpdate;
+    QToolButton *btnToggleMask;
+    QFrame *line;
+    QToolButton *btnToggleDistortedMarkers;
+    QToolButton *btnToggleUndistortedMarkers;
+    QToolButton *btnToggleReprojectedMarkers;
+    QFrame *line_2;
+    QToolButton *btnTogglePixelGrid;
+    QToolButton *btnToggleRays_2;
     QSpacerItem *horizontalSpacer;
     QWidget *widget;
     QVBoxLayout *verticalLayout_13;
@@ -102,31 +111,28 @@ public:
     QDockWidget *dockSynth;
     QWidget *dockWidgetContents;
     QVBoxLayout *verticalLayout_5;
-    QVBoxLayout *verticalLayout_12;
+    QLabel *label_18;
     QHBoxLayout *horizontalLayout_3;
     QPushButton *btnLoadTake;
     QPushButton *btnSaveTake;
+    QLabel *label_14;
+    QVBoxLayout *verticalLayout_7;
     QPushButton *btnBuildFundamental;
+    QPushButton *btnBundleAdjust;
     QPushButton *btnAssignWorldBasis;
-    QPushButton *btnBuild2D;
+    QLabel *label_15;
+    QVBoxLayout *verticalLayout_12;
     QPushButton *btnBuild3D;
     QPushButton *btnIdentify3D;
-    QLabel *label_14;
-    QHBoxLayout *horizontalLayout;
-    QPushButton *pushButton_5;
-    QPushButton *pushButton_6;
-    QFormLayout *formLayout_2;
-    QLabel *label_15;
-    QLabel *lblTakeTrackerId;
-    QLabel *label_17;
-    QLabel *lblTakeTrackerInfo;
-    QLabel *label_19;
-    QSlider *sldTakeThreshold;
-    QLabel *label_20;
-    QSlider *sldTakeSensitivity;
+    QSpacerItem *verticalSpacer;
     QDockWidget *dockSceneView;
     QWidget *sceneViewDockContents;
     QVBoxLayout *verticalLayout_6;
+    QHBoxLayout *toolbar_2;
+    QToolButton *btnToggleMarkerSources;
+    QToolButton *btnToggleRays;
+    QToolButton *btnToggleExpandedMarkers;
+    QSpacerItem *horizontalSpacer_2;
 
     void setupUi(QMainWindow *MainWindow)
     {
@@ -162,6 +168,35 @@ public:
 "	padding: 6px;\n"
 "}\n"
 "\n"
+"QToolButton {\n"
+"	border: 0px;\n"
+"	background-color: rgb(50, 54, 62);\n"
+"	color: white;\n"
+"	padding: 0px;\n"
+"}\n"
+"\n"
+"QToolButton:hover {\n"
+"	border: 0px;\n"
+"	background-color: rgb(60, 64, 72);\n"
+"	color: white;\n"
+"	padding: 0px;\n"
+"}\n"
+"\n"
+"QToolButton:pressed {\n"
+"	border: 1px;\n"
+"	background-color: rgb(50, 70, 100);\n"
+"	color: white;\n"
+"	padding: 0px;\n"
+"}\n"
+"\n"
+"QToolButton:checked {\n"
+"	border: 1px;\n"
+"	background-color: rgb(50, 70, 100);\n"
+"	color: white;\n"
+"	padding: 0px;\n"
+""
+                        "}\n"
+"\n"
 "QDockWidget {\n"
 "	color: white;\n"
 "	background-color: rgb(28, 30, 32);\n"
@@ -187,8 +222,7 @@ public:
 "	background-color: rgb(26, 29, 33);\n"
 "}\n"
 "\n"
-"QDockWidget "
-                        "QHeaderView {\n"
+"QDockWidget QHeaderView {\n"
 "	background-color: rgb(26, 29, 33);\n"
 "	border-bottom: 1px solid rgb(50, 54, 62);\n"
 "}\n"
@@ -208,7 +242,8 @@ public:
 "}\n"
 "\n"
 "QDockWidget::close-button, QDockWidget::float-button {\n"
-"    border: 1px solid transparent;\n"
+"    bord"
+                        "er: 1px solid transparent;\n"
 "	color: white;\n"
 "    padding: 0px;\n"
 "}\n"
@@ -230,8 +265,7 @@ public:
 "	background-color: rgb(50, 54, 62);\n"
 "	color: white;\n"
 "	padding: 5px;\n"
-""
-                        "}\n"
+"}\n"
 "\n"
 "QDockWidget QTableWidget QPushButton {\n"
 "	border: 0px;\n"
@@ -255,8 +289,9 @@ public:
 "}\n"
 "\n"
 "QSlider::groove:horizontal {\n"
-"	    border: 0px;\n"
-"    height: 8px; /* the groove expands to the size of the slider by default. by giving it a height, it has a fixed size */\n"
+"	border: 0px;\n"
+""
+                        "    height: 8px; /* the groove expands to the size of the slider by default. by giving it a height, it has a fixed size */\n"
 "    background: rgb(26, 29, 33);\n"
 "    margin: 2px 0;\n"
 "}\n"
@@ -271,8 +306,7 @@ public:
 "\n"
 "QTabBar\n"
 "{\n"
-"	background-color: rgb(50, 54,"
-                        " 62);\n"
+"	background-color: rgb(50, 54, 62);\n"
 "}\n"
 "\n"
 "QTabBar::tab {\n"
@@ -338,6 +372,23 @@ public:
 
         verticalLayout_11->addWidget(btnStartRecording);
 
+        formLayout_3 = new QFormLayout();
+        formLayout_3->setSpacing(6);
+        formLayout_3->setObjectName(QStringLiteral("formLayout_3"));
+        label_7 = new QLabel(dockWidgetContents_2);
+        label_7->setObjectName(QStringLiteral("label_7"));
+
+        formLayout_3->setWidget(0, QFormLayout::LabelRole, label_7);
+
+        txtFps = new QLineEdit(dockWidgetContents_2);
+        txtFps->setObjectName(QStringLiteral("txtFps"));
+        txtFps->setStyleSheet(QStringLiteral(""));
+
+        formLayout_3->setWidget(0, QFormLayout::FieldRole, txtFps);
+
+
+        verticalLayout_11->addLayout(formLayout_3);
+
 
         verticalLayout->addLayout(verticalLayout_11);
 
@@ -363,17 +414,6 @@ public:
         txtId->setObjectName(QStringLiteral("txtId"));
 
         formLayout->setWidget(1, QFormLayout::FieldRole, txtId);
-
-        label_7 = new QLabel(dockWidgetContents_2);
-        label_7->setObjectName(QStringLiteral("label_7"));
-
-        formLayout->setWidget(2, QFormLayout::LabelRole, label_7);
-
-        txtFps = new QLineEdit(dockWidgetContents_2);
-        txtFps->setObjectName(QStringLiteral("txtFps"));
-        txtFps->setStyleSheet(QStringLiteral(""));
-
-        formLayout->setWidget(2, QFormLayout::FieldRole, txtFps);
 
         label = new QLabel(dockWidgetContents_2);
         label->setObjectName(QStringLiteral("label"));
@@ -529,7 +569,7 @@ public:
         lblTimecode = new QLabel(dockWidgetContents_3);
         lblTimecode->setObjectName(QStringLiteral("lblTimecode"));
         QFont font;
-        font.setPointSize(16);
+        font.setPointSize(12);
         lblTimecode->setFont(font);
         lblTimecode->setAlignment(Qt::AlignCenter);
 
@@ -558,26 +598,41 @@ public:
         sizePolicy2.setVerticalStretch(0);
         sizePolicy2.setHeightForWidth(btnPrevFrameJump->sizePolicy().hasHeightForWidth());
         btnPrevFrameJump->setSizePolicy(sizePolicy2);
+        QIcon icon;
+        icon.addFile(QStringLiteral("icons8-rewind.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnPrevFrameJump->setIcon(icon);
 
         timelineLayout->addWidget(btnPrevFrameJump);
 
         btnPrevFrame = new QPushButton(dockWidgetContents_3);
         btnPrevFrame->setObjectName(QStringLiteral("btnPrevFrame"));
+        QIcon icon1;
+        icon1.addFile(QStringLiteral("icons8-less-than.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnPrevFrame->setIcon(icon1);
 
         timelineLayout->addWidget(btnPrevFrame);
 
         btnPlay = new QPushButton(dockWidgetContents_3);
         btnPlay->setObjectName(QStringLiteral("btnPlay"));
+        QIcon icon2;
+        icon2.addFile(QStringLiteral("icons8-play.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnPlay->setIcon(icon2);
 
         timelineLayout->addWidget(btnPlay);
 
         btnNextFrame = new QPushButton(dockWidgetContents_3);
         btnNextFrame->setObjectName(QStringLiteral("btnNextFrame"));
+        QIcon icon3;
+        icon3.addFile(QStringLiteral("icons8-more-than.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnNextFrame->setIcon(icon3);
 
         timelineLayout->addWidget(btnNextFrame);
 
         btnNextFrameJump = new QPushButton(dockWidgetContents_3);
         btnNextFrameJump->setObjectName(QStringLiteral("btnNextFrameJump"));
+        QIcon icon4;
+        icon4.addFile(QStringLiteral("icons8-fast-forward.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnNextFrameJump->setIcon(icon4);
 
         timelineLayout->addWidget(btnNextFrameJump);
 
@@ -615,15 +670,106 @@ public:
         toolbar = new QHBoxLayout();
         toolbar->setSpacing(0);
         toolbar->setObjectName(QStringLiteral("toolbar"));
-        btnDrawVideo = new QToolButton(trackerViewMain);
-        btnDrawVideo->setObjectName(QStringLiteral("btnDrawVideo"));
+        btnToggleUpdate = new QToolButton(trackerViewMain);
+        btnToggleUpdate->setObjectName(QStringLiteral("btnToggleUpdate"));
+        QIcon icon5;
+        icon5.addFile(QStringLiteral("icons8-exercise.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleUpdate->setIcon(icon5);
+        btnToggleUpdate->setIconSize(QSize(30, 30));
+        btnToggleUpdate->setCheckable(true);
+        btnToggleUpdate->setChecked(true);
 
-        toolbar->addWidget(btnDrawVideo);
+        toolbar->addWidget(btnToggleUpdate);
 
-        btnDrawMarkers = new QToolButton(trackerViewMain);
-        btnDrawMarkers->setObjectName(QStringLiteral("btnDrawMarkers"));
+        btnToggleMask = new QToolButton(trackerViewMain);
+        btnToggleMask->setObjectName(QStringLiteral("btnToggleMask"));
+        QIcon icon6;
+        icon6.addFile(QStringLiteral("icons8-iron-man.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleMask->setIcon(icon6);
+        btnToggleMask->setIconSize(QSize(30, 30));
+        btnToggleMask->setCheckable(true);
 
-        toolbar->addWidget(btnDrawMarkers);
+        toolbar->addWidget(btnToggleMask);
+
+        line = new QFrame(trackerViewMain);
+        line->setObjectName(QStringLiteral("line"));
+        line->setMinimumSize(QSize(0, 0));
+        line->setMaximumSize(QSize(2, 20));
+        line->setStyleSheet(QLatin1String("QFrame {\n"
+"	border: none;\n"
+"	background: rgb(80, 80, 80);\n"
+"}"));
+        line->setFrameShadow(QFrame::Plain);
+        line->setLineWidth(1);
+        line->setFrameShape(QFrame::VLine);
+
+        toolbar->addWidget(line);
+
+        btnToggleDistortedMarkers = new QToolButton(trackerViewMain);
+        btnToggleDistortedMarkers->setObjectName(QStringLiteral("btnToggleDistortedMarkers"));
+        QIcon icon7;
+        icon7.addFile(QStringLiteral("icons8-full-moon.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleDistortedMarkers->setIcon(icon7);
+        btnToggleDistortedMarkers->setIconSize(QSize(30, 30));
+        btnToggleDistortedMarkers->setCheckable(true);
+
+        toolbar->addWidget(btnToggleDistortedMarkers);
+
+        btnToggleUndistortedMarkers = new QToolButton(trackerViewMain);
+        btnToggleUndistortedMarkers->setObjectName(QStringLiteral("btnToggleUndistortedMarkers"));
+        QIcon icon8;
+        icon8.addFile(QStringLiteral("icons8-first-quarter.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleUndistortedMarkers->setIcon(icon8);
+        btnToggleUndistortedMarkers->setIconSize(QSize(30, 30));
+        btnToggleUndistortedMarkers->setCheckable(true);
+        btnToggleUndistortedMarkers->setChecked(true);
+
+        toolbar->addWidget(btnToggleUndistortedMarkers);
+
+        btnToggleReprojectedMarkers = new QToolButton(trackerViewMain);
+        btnToggleReprojectedMarkers->setObjectName(QStringLiteral("btnToggleReprojectedMarkers"));
+        QIcon icon9;
+        icon9.addFile(QStringLiteral("icons8-new-moon.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleReprojectedMarkers->setIcon(icon9);
+        btnToggleReprojectedMarkers->setIconSize(QSize(30, 30));
+        btnToggleReprojectedMarkers->setCheckable(true);
+        btnToggleReprojectedMarkers->setChecked(true);
+
+        toolbar->addWidget(btnToggleReprojectedMarkers);
+
+        line_2 = new QFrame(trackerViewMain);
+        line_2->setObjectName(QStringLiteral("line_2"));
+        line_2->setMinimumSize(QSize(0, 0));
+        line_2->setMaximumSize(QSize(2, 20));
+        line_2->setStyleSheet(QLatin1String("QFrame {\n"
+"	border: none;\n"
+"	background: rgb(80, 80, 80);\n"
+"}"));
+        line_2->setFrameShadow(QFrame::Plain);
+        line_2->setLineWidth(1);
+        line_2->setFrameShape(QFrame::VLine);
+
+        toolbar->addWidget(line_2);
+
+        btnTogglePixelGrid = new QToolButton(trackerViewMain);
+        btnTogglePixelGrid->setObjectName(QStringLiteral("btnTogglePixelGrid"));
+        QIcon icon10;
+        icon10.addFile(QStringLiteral("icons8-grid.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnTogglePixelGrid->setIcon(icon10);
+        btnTogglePixelGrid->setIconSize(QSize(30, 30));
+        btnTogglePixelGrid->setCheckable(true);
+
+        toolbar->addWidget(btnTogglePixelGrid);
+
+        btnToggleRays_2 = new QToolButton(trackerViewMain);
+        btnToggleRays_2->setObjectName(QStringLiteral("btnToggleRays_2"));
+        QIcon icon11;
+        icon11.addFile(QStringLiteral("icons8-day-camera.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleRays_2->setIcon(icon11);
+        btnToggleRays_2->setIconSize(QSize(30, 30));
+        btnToggleRays_2->setCheckable(true);
+
+        toolbar->addWidget(btnToggleRays_2);
 
         horizontalSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
@@ -667,13 +813,19 @@ public:
         verticalLayout_5->setContentsMargins(11, 11, 11, 11);
         verticalLayout_5->setObjectName(QStringLiteral("verticalLayout_5"));
         verticalLayout_5->setContentsMargins(0, 0, 0, 0);
-        verticalLayout_12 = new QVBoxLayout();
-        verticalLayout_12->setSpacing(6);
-        verticalLayout_12->setObjectName(QStringLiteral("verticalLayout_12"));
-        verticalLayout_12->setContentsMargins(6, 6, 6, 6);
+        label_18 = new QLabel(dockWidgetContents);
+        label_18->setObjectName(QStringLiteral("label_18"));
+        label_18->setMinimumSize(QSize(0, 32));
+        label_18->setMaximumSize(QSize(16777215, 32));
+        label_18->setStyleSheet(QLatin1String("background-color: rgb(32, 34, 39);\n"
+"padding: 5px;"));
+
+        verticalLayout_5->addWidget(label_18);
+
         horizontalLayout_3 = new QHBoxLayout();
         horizontalLayout_3->setSpacing(6);
         horizontalLayout_3->setObjectName(QStringLiteral("horizontalLayout_3"));
+        horizontalLayout_3->setContentsMargins(6, 6, 6, 6);
         btnLoadTake = new QPushButton(dockWidgetContents);
         btnLoadTake->setObjectName(QStringLiteral("btnLoadTake"));
 
@@ -685,23 +837,52 @@ public:
         horizontalLayout_3->addWidget(btnSaveTake);
 
 
-        verticalLayout_12->addLayout(horizontalLayout_3);
+        verticalLayout_5->addLayout(horizontalLayout_3);
 
+        label_14 = new QLabel(dockWidgetContents);
+        label_14->setObjectName(QStringLiteral("label_14"));
+        label_14->setMinimumSize(QSize(0, 32));
+        label_14->setMaximumSize(QSize(16777215, 32));
+        label_14->setStyleSheet(QLatin1String("background-color: rgb(32, 34, 39);\n"
+"padding: 5px;"));
+
+        verticalLayout_5->addWidget(label_14);
+
+        verticalLayout_7 = new QVBoxLayout();
+        verticalLayout_7->setSpacing(6);
+        verticalLayout_7->setObjectName(QStringLiteral("verticalLayout_7"));
+        verticalLayout_7->setContentsMargins(6, 6, 6, 6);
         btnBuildFundamental = new QPushButton(dockWidgetContents);
         btnBuildFundamental->setObjectName(QStringLiteral("btnBuildFundamental"));
 
-        verticalLayout_12->addWidget(btnBuildFundamental);
+        verticalLayout_7->addWidget(btnBuildFundamental);
+
+        btnBundleAdjust = new QPushButton(dockWidgetContents);
+        btnBundleAdjust->setObjectName(QStringLiteral("btnBundleAdjust"));
+
+        verticalLayout_7->addWidget(btnBundleAdjust);
 
         btnAssignWorldBasis = new QPushButton(dockWidgetContents);
         btnAssignWorldBasis->setObjectName(QStringLiteral("btnAssignWorldBasis"));
 
-        verticalLayout_12->addWidget(btnAssignWorldBasis);
+        verticalLayout_7->addWidget(btnAssignWorldBasis);
 
-        btnBuild2D = new QPushButton(dockWidgetContents);
-        btnBuild2D->setObjectName(QStringLiteral("btnBuild2D"));
 
-        verticalLayout_12->addWidget(btnBuild2D);
+        verticalLayout_5->addLayout(verticalLayout_7);
 
+        label_15 = new QLabel(dockWidgetContents);
+        label_15->setObjectName(QStringLiteral("label_15"));
+        label_15->setMinimumSize(QSize(0, 32));
+        label_15->setMaximumSize(QSize(16777215, 32));
+        label_15->setStyleSheet(QLatin1String("background-color: rgb(32, 34, 39);\n"
+"padding: 5px;"));
+
+        verticalLayout_5->addWidget(label_15);
+
+        verticalLayout_12 = new QVBoxLayout();
+        verticalLayout_12->setSpacing(6);
+        verticalLayout_12->setObjectName(QStringLiteral("verticalLayout_12"));
+        verticalLayout_12->setContentsMargins(6, 6, 6, 6);
         btnBuild3D = new QPushButton(dockWidgetContents);
         btnBuild3D->setObjectName(QStringLiteral("btnBuild3D"));
 
@@ -715,80 +896,9 @@ public:
 
         verticalLayout_5->addLayout(verticalLayout_12);
 
-        label_14 = new QLabel(dockWidgetContents);
-        label_14->setObjectName(QStringLiteral("label_14"));
-        label_14->setMinimumSize(QSize(0, 32));
-        label_14->setMaximumSize(QSize(16777215, 32));
-        label_14->setStyleSheet(QLatin1String("background-color: rgb(32, 34, 39);\n"
-"padding: 5px;"));
+        verticalSpacer = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
-        verticalLayout_5->addWidget(label_14);
-
-        horizontalLayout = new QHBoxLayout();
-        horizontalLayout->setSpacing(6);
-        horizontalLayout->setObjectName(QStringLiteral("horizontalLayout"));
-        horizontalLayout->setContentsMargins(6, 6, 6, 6);
-        pushButton_5 = new QPushButton(dockWidgetContents);
-        pushButton_5->setObjectName(QStringLiteral("pushButton_5"));
-
-        horizontalLayout->addWidget(pushButton_5);
-
-        pushButton_6 = new QPushButton(dockWidgetContents);
-        pushButton_6->setObjectName(QStringLiteral("pushButton_6"));
-
-        horizontalLayout->addWidget(pushButton_6);
-
-
-        verticalLayout_5->addLayout(horizontalLayout);
-
-        formLayout_2 = new QFormLayout();
-        formLayout_2->setSpacing(6);
-        formLayout_2->setObjectName(QStringLiteral("formLayout_2"));
-        formLayout_2->setContentsMargins(6, 6, 6, 6);
-        label_15 = new QLabel(dockWidgetContents);
-        label_15->setObjectName(QStringLiteral("label_15"));
-
-        formLayout_2->setWidget(1, QFormLayout::LabelRole, label_15);
-
-        lblTakeTrackerId = new QLabel(dockWidgetContents);
-        lblTakeTrackerId->setObjectName(QStringLiteral("lblTakeTrackerId"));
-
-        formLayout_2->setWidget(1, QFormLayout::FieldRole, lblTakeTrackerId);
-
-        label_17 = new QLabel(dockWidgetContents);
-        label_17->setObjectName(QStringLiteral("label_17"));
-
-        formLayout_2->setWidget(2, QFormLayout::LabelRole, label_17);
-
-        lblTakeTrackerInfo = new QLabel(dockWidgetContents);
-        lblTakeTrackerInfo->setObjectName(QStringLiteral("lblTakeTrackerInfo"));
-
-        formLayout_2->setWidget(2, QFormLayout::FieldRole, lblTakeTrackerInfo);
-
-        label_19 = new QLabel(dockWidgetContents);
-        label_19->setObjectName(QStringLiteral("label_19"));
-
-        formLayout_2->setWidget(3, QFormLayout::LabelRole, label_19);
-
-        sldTakeThreshold = new QSlider(dockWidgetContents);
-        sldTakeThreshold->setObjectName(QStringLiteral("sldTakeThreshold"));
-        sldTakeThreshold->setOrientation(Qt::Horizontal);
-
-        formLayout_2->setWidget(3, QFormLayout::FieldRole, sldTakeThreshold);
-
-        label_20 = new QLabel(dockWidgetContents);
-        label_20->setObjectName(QStringLiteral("label_20"));
-
-        formLayout_2->setWidget(4, QFormLayout::LabelRole, label_20);
-
-        sldTakeSensitivity = new QSlider(dockWidgetContents);
-        sldTakeSensitivity->setObjectName(QStringLiteral("sldTakeSensitivity"));
-        sldTakeSensitivity->setOrientation(Qt::Horizontal);
-
-        formLayout_2->setWidget(4, QFormLayout::FieldRole, sldTakeSensitivity);
-
-
-        verticalLayout_5->addLayout(formLayout_2);
+        verticalLayout_5->addItem(verticalSpacer);
 
         dockSynth->setWidget(dockWidgetContents);
         MainWindow->addDockWidget(static_cast<Qt::DockWidgetArea>(4), dockSynth);
@@ -797,9 +907,49 @@ public:
         sceneViewDockContents = new QWidget();
         sceneViewDockContents->setObjectName(QStringLiteral("sceneViewDockContents"));
         verticalLayout_6 = new QVBoxLayout(sceneViewDockContents);
-        verticalLayout_6->setSpacing(6);
+        verticalLayout_6->setSpacing(0);
         verticalLayout_6->setContentsMargins(11, 11, 11, 11);
         verticalLayout_6->setObjectName(QStringLiteral("verticalLayout_6"));
+        verticalLayout_6->setContentsMargins(0, 0, 0, 0);
+        toolbar_2 = new QHBoxLayout();
+        toolbar_2->setSpacing(0);
+        toolbar_2->setObjectName(QStringLiteral("toolbar_2"));
+        btnToggleMarkerSources = new QToolButton(sceneViewDockContents);
+        btnToggleMarkerSources->setObjectName(QStringLiteral("btnToggleMarkerSources"));
+        QIcon icon12;
+        icon12.addFile(QStringLiteral("icons8-sun.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleMarkerSources->setIcon(icon12);
+        btnToggleMarkerSources->setIconSize(QSize(30, 30));
+        btnToggleMarkerSources->setCheckable(true);
+        btnToggleMarkerSources->setChecked(false);
+
+        toolbar_2->addWidget(btnToggleMarkerSources);
+
+        btnToggleRays = new QToolButton(sceneViewDockContents);
+        btnToggleRays->setObjectName(QStringLiteral("btnToggleRays"));
+        btnToggleRays->setIcon(icon11);
+        btnToggleRays->setIconSize(QSize(30, 30));
+        btnToggleRays->setCheckable(true);
+
+        toolbar_2->addWidget(btnToggleRays);
+
+        btnToggleExpandedMarkers = new QToolButton(sceneViewDockContents);
+        btnToggleExpandedMarkers->setObjectName(QStringLiteral("btnToggleExpandedMarkers"));
+        QIcon icon13;
+        icon13.addFile(QStringLiteral("icons8-expand.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleExpandedMarkers->setIcon(icon13);
+        btnToggleExpandedMarkers->setIconSize(QSize(30, 30));
+        btnToggleExpandedMarkers->setCheckable(true);
+
+        toolbar_2->addWidget(btnToggleExpandedMarkers);
+
+        horizontalSpacer_2 = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+        toolbar_2->addItem(horizontalSpacer_2);
+
+
+        verticalLayout_6->addLayout(toolbar_2);
+
         dockSceneView->setWidget(sceneViewDockContents);
         MainWindow->addDockWidget(static_cast<Qt::DockWidgetArea>(4), dockSceneView);
 
@@ -813,14 +963,14 @@ public:
         MainWindow->setWindowTitle(QApplication::translate("MainWindow", "Vector Synth", Q_NULLPTR));
         actionNew->setText(QApplication::translate("MainWindow", "New", Q_NULLPTR));
         dockProps->setWindowTitle(QApplication::translate("MainWindow", "Live", Q_NULLPTR));
-        label_16->setText(QApplication::translate("MainWindow", "Recording", Q_NULLPTR));
+        label_16->setText(QApplication::translate("MainWindow", "Take", Q_NULLPTR));
         btnResetFrameIds->setText(QApplication::translate("MainWindow", "Reset Frame IDs", Q_NULLPTR));
         btnStartRecording->setText(QApplication::translate("MainWindow", "Start Recording", Q_NULLPTR));
+        label_7->setText(QApplication::translate("MainWindow", "FPS", Q_NULLPTR));
+        txtFps->setText(QApplication::translate("MainWindow", "40", Q_NULLPTR));
         label_13->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
         label_12->setText(QApplication::translate("MainWindow", "Name", Q_NULLPTR));
         txtId->setText(QApplication::translate("MainWindow", "Tracker Id", Q_NULLPTR));
-        label_7->setText(QApplication::translate("MainWindow", "FPS", Q_NULLPTR));
-        txtFps->setText(QApplication::translate("MainWindow", "40", Q_NULLPTR));
         label->setText(QApplication::translate("MainWindow", "Exposure", Q_NULLPTR));
         txtExposure->setText(QApplication::translate("MainWindow", "7000", Q_NULLPTR));
         label_6->setText(QApplication::translate("MainWindow", "ISO", Q_NULLPTR));
@@ -844,32 +994,34 @@ public:
         dockTimeline->setWindowTitle(QApplication::translate("MainWindow", "Take Timeline", Q_NULLPTR));
         lblTimecode->setText(QApplication::translate("MainWindow", "00:00:000", Q_NULLPTR));
         txtPlaySpeed->setText(QApplication::translate("MainWindow", "1.0", Q_NULLPTR));
-        btnPrevFrameJump->setText(QApplication::translate("MainWindow", "<<<", Q_NULLPTR));
-        btnPrevFrame->setText(QApplication::translate("MainWindow", "<<", Q_NULLPTR));
-        btnPlay->setText(QApplication::translate("MainWindow", ">", Q_NULLPTR));
-        btnNextFrame->setText(QApplication::translate("MainWindow", ">>", Q_NULLPTR));
-        btnNextFrameJump->setText(QApplication::translate("MainWindow", ">>>", Q_NULLPTR));
+        btnPrevFrameJump->setText(QString());
+        btnPrevFrame->setText(QString());
+        btnPlay->setText(QString());
+        btnNextFrame->setText(QString());
+        btnNextFrameJump->setText(QString());
         dockTrackers->setWindowTitle(QApplication::translate("MainWindow", "Tracker View", Q_NULLPTR));
-        btnDrawVideo->setText(QApplication::translate("MainWindow", "V", Q_NULLPTR));
-        btnDrawMarkers->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
-        dockSynth->setWindowTitle(QApplication::translate("MainWindow", "Synthesize", Q_NULLPTR));
+        btnToggleUpdate->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
+        btnToggleMask->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
+        btnToggleDistortedMarkers->setText(QString());
+        btnToggleUndistortedMarkers->setText(QString());
+        btnToggleReprojectedMarkers->setText(QString());
+        btnTogglePixelGrid->setText(QString());
+        btnToggleRays_2->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
+        dockSynth->setWindowTitle(QApplication::translate("MainWindow", "Takes", Q_NULLPTR));
+        label_18->setText(QApplication::translate("MainWindow", "Take", Q_NULLPTR));
         btnLoadTake->setText(QApplication::translate("MainWindow", "Load", Q_NULLPTR));
         btnSaveTake->setText(QApplication::translate("MainWindow", "Save", Q_NULLPTR));
+        label_14->setText(QApplication::translate("MainWindow", "Calibration", Q_NULLPTR));
         btnBuildFundamental->setText(QApplication::translate("MainWindow", "Find Extrinsic Parameters", Q_NULLPTR));
+        btnBundleAdjust->setText(QApplication::translate("MainWindow", "Bundle Adjust", Q_NULLPTR));
         btnAssignWorldBasis->setText(QApplication::translate("MainWindow", "Assign World Basis", Q_NULLPTR));
-        btnBuild2D->setText(QApplication::translate("MainWindow", "Build 2D Markers", Q_NULLPTR));
+        label_15->setText(QApplication::translate("MainWindow", "Tools", Q_NULLPTR));
         btnBuild3D->setText(QApplication::translate("MainWindow", "Build 3D Markers", Q_NULLPTR));
-        btnIdentify3D->setText(QApplication::translate("MainWindow", "Identify Markers", Q_NULLPTR));
-        label_14->setText(QApplication::translate("MainWindow", "Tracker Properties", Q_NULLPTR));
-        pushButton_5->setText(QApplication::translate("MainWindow", "All", Q_NULLPTR));
-        pushButton_6->setText(QApplication::translate("MainWindow", "Selected", Q_NULLPTR));
-        label_15->setText(QApplication::translate("MainWindow", "ID", Q_NULLPTR));
-        lblTakeTrackerId->setText(QApplication::translate("MainWindow", "Tracker Id", Q_NULLPTR));
-        label_17->setText(QApplication::translate("MainWindow", "Params", Q_NULLPTR));
-        lblTakeTrackerInfo->setText(QApplication::translate("MainWindow", "40fps 7000exp 100iso", Q_NULLPTR));
-        label_19->setText(QApplication::translate("MainWindow", "Threshold", Q_NULLPTR));
-        label_20->setText(QApplication::translate("MainWindow", "Sensitivity", Q_NULLPTR));
+        btnIdentify3D->setText(QApplication::translate("MainWindow", "Label Markers", Q_NULLPTR));
         dockSceneView->setWindowTitle(QApplication::translate("MainWindow", "Scene View", Q_NULLPTR));
+        btnToggleMarkerSources->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
+        btnToggleRays->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
+        btnToggleExpandedMarkers->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
     } // retranslateUi
 
 };

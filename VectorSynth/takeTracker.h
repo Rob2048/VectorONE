@@ -11,7 +11,6 @@ class VidFrameData
 public:
 
 	int					type;
-	int					time;
 	int					index;
 	int					size;
 	int					bufferPosition;
@@ -37,7 +36,6 @@ public:
 	QString				name;
 	uint32_t			serial;	
 	int					exposure;
-	int					fps;
 	int					iso;
 	float				threshold;
 	float				sensitivity;
@@ -54,7 +52,8 @@ public:
 	Decoder*			decoder;
 	uint8_t*			takeClipData;
 	int					frameCount;
-	QList<VidFrameData> vidFrameData;	
+	QList<VidFrameData> vidFrameData;
+	int					mode;
 
 	TakeTracker();
 	~TakeTracker();
@@ -66,10 +65,10 @@ public:
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void BuildRays(int StartFrame, int EndFrame);
 	bool ConvertTimelineToFrame(int TimelineFrame, int* KeyFrameIndex, int* FrameIndex);
-	void DrawMarkers(int FrameIndex);
 	VidFrameData* GetLocalFrame(int TimelineFrame);
 	void SetPose(cv::Mat Pose);
 	void SetCamDist(cv::Mat Cam, cv::Mat Dist);
+	QVector2D ProjectPoint(QVector3D P);
 
 private:
 

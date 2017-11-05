@@ -9,40 +9,6 @@ QT_USE_NAMESPACE
 
 class MainWindow;
 
-struct blob
-{
-	float minX;
-	float minY;
-	float maxX;
-	float maxY;
-	float cX;
-	float cY;
-};
-
-struct region
-{
-	uint8_t	id;
-	int minX;
-	int minY;
-	int maxX;
-	int maxY;
-	int width;
-	int height;
-	int pixelIdx;
-	int pixelCount;
-	uint8_t maxLum;
-};
-
-struct blobDataHeader
-{
-	int64_t frameId;
-	float avgMasterOffset;	
-	int blobCount;
-	int regionCount;
-	int foundRegionCount;
-	int totalTime;
-};
-
 class CameraView : public QWidget
 {
 	Q_OBJECT
@@ -66,7 +32,19 @@ public:
 	QVector2D	viewTranslate;
 	float		viewZoom;
 
-	int hoveredId;
+	int			hoveredId;
+
+	bool		showMask;
+	int			markerMode;
+	bool		showPixelGrid;
+	bool		showCamRays;
+	bool		showDistortedMarkers;
+	bool		showUndistortedMarkers;
+	bool		showReprojectedMarkers;
+
+	void setMask(bool Visible);
+	void setMarkerMode(int Mode);
+	void setPixelGrid(bool Visible);
 
 protected:
 

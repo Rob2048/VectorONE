@@ -44,6 +44,34 @@ QToolBar {
 	padding: 6px;
 }
 
+QToolButton {
+	border: 0px;
+	background-color: rgb(50, 54, 62);
+	color: white;
+	padding: 0px;
+}
+
+QToolButton:hover {
+	border: 0px;
+	background-color: rgb(60, 64, 72);
+	color: white;
+	padding: 0px;
+}
+
+QToolButton:pressed {
+	border: 1px;
+	background-color: rgb(50, 70, 100);
+	color: white;
+	padding: 0px;
+}
+
+QToolButton:checked {
+	border: 1px;
+	background-color: rgb(50, 70, 100);
+	color: white;
+	padding: 0px;
+}
+
 QDockWidget {
 	color: white;
 	background-color: rgb(28, 30, 32);
@@ -135,7 +163,7 @@ QDockWidget QPushButton:pressed {
 }
 
 QSlider::groove:horizontal {
-	    border: 0px;
+	border: 0px;
     height: 8px; /* the groove expands to the size of the slider by default. by giving it a height, it has a fixed size */
     background: rgb(26, 29, 33);
     margin: 2px 0;
@@ -244,7 +272,7 @@ QTabBar::tab:selected
 padding: 5px;</string>
        </property>
        <property name="text">
-        <string>Recording</string>
+        <string>Take</string>
        </property>
       </widget>
      </item>
@@ -272,6 +300,27 @@ padding: 5px;</string>
           <string>Start Recording</string>
          </property>
         </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_7">
+           <property name="text">
+            <string>FPS</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="txtFps">
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
+           <property name="text">
+            <string>40</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>
@@ -320,23 +369,6 @@ padding: 5px;</string>
         <widget class="QLineEdit" name="txtId">
          <property name="text">
           <string>Tracker Id</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_7">
-         <property name="text">
-          <string>FPS</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLineEdit" name="txtFps">
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string>40</string>
          </property>
         </widget>
        </item>
@@ -590,7 +622,7 @@ padding: 5px;</string>
         <widget class="QLabel" name="lblTimecode">
          <property name="font">
           <font>
-           <pointsize>16</pointsize>
+           <pointsize>12</pointsize>
           </font>
          </property>
          <property name="text">
@@ -649,35 +681,55 @@ padding: 5px;</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>&lt;&lt;&lt;</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>icons8-rewind.png</normaloff>icons8-rewind.png</iconset>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="btnPrevFrame">
            <property name="text">
-            <string>&lt;&lt;</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>icons8-less-than.png</normaloff>icons8-less-than.png</iconset>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="btnPlay">
            <property name="text">
-            <string>&gt;</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>icons8-play.png</normaloff>icons8-play.png</iconset>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="btnNextFrame">
            <property name="text">
-            <string>&gt;&gt;</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>icons8-more-than.png</normaloff>icons8-more-than.png</iconset>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="btnNextFrameJump">
            <property name="text">
-            <string>&gt;&gt;&gt;</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset>
+             <normaloff>icons8-fast-forward.png</normaloff>icons8-fast-forward.png</iconset>
            </property>
           </widget>
          </item>
@@ -748,16 +800,213 @@ padding: 5px;</string>
            <number>0</number>
           </property>
           <item>
-           <widget class="QToolButton" name="btnDrawVideo">
+           <widget class="QToolButton" name="btnToggleUpdate">
             <property name="text">
-             <string>V</string>
+             <string>F</string>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-exercise.png</normaloff>icons8-exercise.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="btnDrawMarkers">
+           <widget class="QToolButton" name="btnToggleMask">
             <property name="text">
              <string>M</string>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-iron-man.png</normaloff>icons8-iron-man.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="Line" name="line">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>2</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QFrame {
+	border: none;
+	background: rgb(80, 80, 80);
+}</string>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Plain</enum>
+            </property>
+            <property name="lineWidth">
+             <number>1</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnToggleDistortedMarkers">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-full-moon.png</normaloff>icons8-full-moon.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnToggleUndistortedMarkers">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-first-quarter.png</normaloff>icons8-first-quarter.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnToggleReprojectedMarkers">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-new-moon.png</normaloff>icons8-new-moon.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="Line" name="line_2">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>2</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QFrame {
+	border: none;
+	background: rgb(80, 80, 80);
+}</string>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Plain</enum>
+            </property>
+            <property name="lineWidth">
+             <number>1</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnTogglePixelGrid">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-grid.png</normaloff>icons8-grid.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnToggleRays_2">
+            <property name="text">
+             <string>M</string>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-day-camera.png</normaloff>icons8-day-camera.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -814,7 +1063,7 @@ padding: 5px;</string>
   </widget>
   <widget class="QDockWidget" name="dockSynth">
    <property name="windowTitle">
-    <string>Synthesize</string>
+    <string>Takes</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>4</number>
@@ -834,7 +1083,30 @@ padding: 5px;</string>
       <number>0</number>
      </property>
      <item>
-      <layout class="QVBoxLayout" name="verticalLayout_12">
+      <widget class="QLabel" name="label_18">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(32, 34, 39);
+padding: 5px;</string>
+       </property>
+       <property name="text">
+        <string>Take</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
        <property name="leftMargin">
         <number>6</number>
        </property>
@@ -848,55 +1120,16 @@ padding: 5px;</string>
         <number>6</number>
        </property>
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_3">
-         <item>
-          <widget class="QPushButton" name="btnLoadTake">
-           <property name="text">
-            <string>Load</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="btnSaveTake">
-           <property name="text">
-            <string>Save</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnBuildFundamental">
+        <widget class="QPushButton" name="btnLoadTake">
          <property name="text">
-          <string>Find Extrinsic Parameters</string>
+          <string>Load</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="btnAssignWorldBasis">
+        <widget class="QPushButton" name="btnSaveTake">
          <property name="text">
-          <string>Assign World Basis</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnBuild2D">
-         <property name="text">
-          <string>Build 2D Markers</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnBuild3D">
-         <property name="text">
-          <string>Build 3D Markers</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnIdentify3D">
-         <property name="text">
-          <string>Identify Markers</string>
+          <string>Save</string>
          </property>
         </widget>
        </item>
@@ -921,12 +1154,12 @@ padding: 5px;</string>
 padding: 5px;</string>
        </property>
        <property name="text">
-        <string>Tracker Properties</string>
+        <string>Calibration</string>
        </property>
       </widget>
      </item>
      <item>
-      <layout class="QHBoxLayout" name="horizontalLayout">
+      <layout class="QVBoxLayout" name="verticalLayout_7">
        <property name="leftMargin">
         <number>6</number>
        </property>
@@ -940,23 +1173,53 @@ padding: 5px;</string>
         <number>6</number>
        </property>
        <item>
-        <widget class="QPushButton" name="pushButton_5">
+        <widget class="QPushButton" name="btnBuildFundamental">
          <property name="text">
-          <string>All</string>
+          <string>Find Extrinsic Parameters</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_6">
+        <widget class="QPushButton" name="btnBundleAdjust">
          <property name="text">
-          <string>Selected</string>
+          <string>Bundle Adjust</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnAssignWorldBasis">
+         <property name="text">
+          <string>Assign World Basis</string>
          </property>
         </widget>
        </item>
       </layout>
      </item>
      <item>
-      <layout class="QFormLayout" name="formLayout_2">
+      <widget class="QLabel" name="label_15">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(32, 34, 39);
+padding: 5px;</string>
+       </property>
+       <property name="text">
+        <string>Tools</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout_12">
        <property name="leftMargin">
         <number>6</number>
        </property>
@@ -969,63 +1232,34 @@ padding: 5px;</string>
        <property name="bottomMargin">
         <number>6</number>
        </property>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_15">
+       <item>
+        <widget class="QPushButton" name="btnBuild3D">
          <property name="text">
-          <string>ID</string>
+          <string>Build 3D Markers</string>
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="lblTakeTrackerId">
+       <item>
+        <widget class="QPushButton" name="btnIdentify3D">
          <property name="text">
-          <string>Tracker Id</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_17">
-         <property name="text">
-          <string>Params</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="lblTakeTrackerInfo">
-         <property name="text">
-          <string>40fps 7000exp 100iso</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="label_19">
-         <property name="text">
-          <string>Threshold</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QSlider" name="sldTakeThreshold">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_20">
-         <property name="text">
-          <string>Sensitivity</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <widget class="QSlider" name="sldTakeSensitivity">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
+          <string>Label Markers</string>
          </property>
         </widget>
        </item>
       </layout>
+     </item>
+     <item>
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
      </item>
     </layout>
    </widget>
@@ -1038,7 +1272,106 @@ padding: 5px;</string>
     <number>4</number>
    </attribute>
    <widget class="QWidget" name="sceneViewDockContents">
-    <layout class="QVBoxLayout" name="verticalLayout_6"/>
+    <layout class="QVBoxLayout" name="verticalLayout_6">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <layout class="QHBoxLayout" name="toolbar_2">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QToolButton" name="btnToggleMarkerSources">
+         <property name="text">
+          <string>F</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-sun.png</normaloff>icons8-sun.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="btnToggleRays">
+         <property name="text">
+          <string>M</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-day-camera.png</normaloff>icons8-day-camera.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="btnToggleExpandedMarkers">
+         <property name="text">
+          <string>M</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-expand.png</normaloff>icons8-expand.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </widget>
   </widget>
   <action name="actionNew">

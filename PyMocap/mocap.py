@@ -136,7 +136,7 @@ class NetworkReaderThread(threading.Thread):
 			try:
 				#print('Waiting for Server IP')
 				msg = self.broadcastSocket.recvfrom(1024)
-				
+
 				r = re.search('KineticSynth:(\d+.\d+.\d+.\d+)', msg[0])
 
 				if r != None:		

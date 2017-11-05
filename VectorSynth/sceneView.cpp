@@ -57,6 +57,10 @@ SceneView::SceneView(QWidget *Parent) :
 	_mouseRight = false;
 
 	_mainFont = QFont("Arial", 8);
+
+	showMarkerSources = false;
+	showRays = false;
+	showExpandedMarkers = false;
 }
 
 void SceneView::gizmoClear()
@@ -265,7 +269,7 @@ void SceneView::resizeGL(int W, int H)
 	if (H != 0)
 	{
 		_projMat.setToIdentity();
-		_projMat.perspective(60.0f, (float)W / (float)H, 0.1f, 100.0f);
+		_projMat.perspective(60.0f, (float)W / (float)H, 0.01f, 100.0f);
 		//glViewport(0, 0, W, H);
 	}
 }
@@ -353,7 +357,7 @@ void SceneView::paintGL()
 	//_pointWorldMat.rotate(5, QVector3D(1, 0, 0));
 	//_pointWorldMat.scale(1.47f / 1.009f);
 
-	/*
+	//*
 	if (take)
 	{
 		_pointWorldMat(0, 0) = take->wX.x();
@@ -374,7 +378,7 @@ void SceneView::paintGL()
 		scaleMat.scale(take->wScale);
 		_pointWorldMat = scaleMat * _pointWorldMat;
 	}
-	*/
+	//*/
 
 	QMatrix4x4 modelMat;
 	modelMat.setToIdentity();
@@ -450,7 +454,11 @@ void SceneView::paintGL()
 
 					if (fI == timelineFrame)
 					{
-						markerMat.scale(0.004f);
+						if (showExpandedMarkers)
+							markerMat.scale(0.03f);
+						else
+							markerMat.scale(0.01f);
+
 						_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 
 						if (_selectedIdx != i)
@@ -460,7 +468,7 @@ void SceneView::paintGL()
 					}
 					else
 					{
-						markerMat.scale(0.001f);
+						markerMat.scale(0.006f);//0.001
 						_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 						_minimalShader.setUniformValue("u_color", QVector4D(0.5f, 0.5f, 0.5f, 1));
 					}
@@ -468,6 +476,7 @@ void SceneView::paintGL()
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
 				}
 
+				/*
 				if (fI == timelineFrame)
 				{
 					QVector3D rm = take->refMarkers[fI];
@@ -480,7 +489,9 @@ void SceneView::paintGL()
 					_minimalShader.setUniformValue("u_color", QVector4D(1, 0, 1, 1));
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
 				}
+				*/
 
+				/*
 				// Calib marker
 				if (fI == timelineFrame && take->calibMarkers.size() > fI + 1)
 				{
@@ -494,6 +505,7 @@ void SceneView::paintGL()
 					_minimalShader.setUniformValue("u_color", QVector4D(0, 0, 1, 1));
 					glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
 				}
+				*/
 			}
 		}
 	}
@@ -572,20 +584,51 @@ void SceneView::paintGL()
 		//gizmoPush({ o ,{ 0, 1, 0 } }); gizmoPush({ o + take->wY ,{ 0, 1, 0 } });
 		//gizmoPush({ o ,{ 0, 0, 1 } }); gizmoPush({ o + take->wZ ,{ 0, 0, 1 } });
 
-		for (int i = 0; i < take->trackers.count(); ++i)
+		if (showRays)
 		{
-			TakeTracker* t = take->trackers[i];
-			int localTrackerFrame = timelineFrame;
-
-			for (int mIdx = 0; mIdx < t->vidFrameData[localTrackerFrame].newMarkers.size(); ++mIdx)
+			for (int i = 0; i < take->trackers.count(); ++i)
 			{
-				Marker2D* m = &t->vidFrameData[localTrackerFrame].newMarkers[mIdx];
+				TakeTracker* t = take->trackers[i];
 
-				gizmoPush({ t->worldPos ,{ 1, 0, 1 } });
-				gizmoPush({ t->worldPos + m->worldRayD, { 1, 0, 1 } });
+				if (timelineFrame < t->frameCount)
+				{
+					int localTrackerFrame = timelineFrame;
 
-				//gizmoPush({ t->decoder->refWorldPos ,{ 0, 1, 1 } });
-				//gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
+					for (int mIdx = 0; mIdx < t->vidFrameData[localTrackerFrame].newMarkers.size(); ++mIdx)
+					{
+						Marker2D* m = &t->vidFrameData[localTrackerFrame].newMarkers[mIdx];
+
+						gizmoPush({ t->worldPos ,{ 1, 0, 1 } });
+						gizmoPush({ t->worldPos + m->worldRayD * 6, { 1, 0, 1 } });
+
+						//gizmoPush({ t->decoder->refWorldPos ,{ 0, 1, 1 } });
+						//gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
+					}
+				}
+			}
+		}
+
+		if (showMarkerSources)
+		{
+			for (int i = 0; i < take->markers[timelineFrame].size(); ++i)
+			{
+				Marker3D* m = &take->markers[timelineFrame][i];
+
+				for (int t = 0; t < m->sources.size(); ++t)
+				{
+					QVector3D tWP = take->trackers[m->sources[t].trackerId]->worldPos;
+
+					float length = (tWP - m->pos).length();
+					
+					gizmoPush({ tWP, { 0.3f, 0.3f, 0.3f } });
+					gizmoPush({ tWP + m->sources[t].worldRayD * length, { 0.3f, 0.3f, 0.3f } });
+				}
+
+				/*
+				QVector3D markerPos = (_pointWorldMat * QVector4D(m->pos.x(), m->pos.y(), m->pos.z(), 1.0f)).toVector3DAffine();
+				QMatrix4x4 markerMat;
+				markerMat.translate(markerPos);
+				*/
 			}
 		}
 	}
