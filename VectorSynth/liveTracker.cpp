@@ -9,7 +9,6 @@ LiveTracker::LiveTracker() :
 	active(true),
 	connected(false),
 	loaded(false),
-	decodeVideo(true),
 	interactMode(0),
 	markerDataSize(0)
 {

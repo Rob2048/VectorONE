@@ -27,14 +27,8 @@ public slots:
 	void OnNewMarkersFrame(TrackerConnection* Tracker);
 	void OnInfoUpdate(TrackerConnection* Tracker);
 	void OnSendData(int ClientId, QByteArray Data);
+	void OnUpdateTracker(unsigned int SerialId, QByteArray Props);
 	void OnMaskChange(int ClientId, QByteArray Data);
-	void OnCamSensitivityChange(int Value);
-	void OnCamFrameSkipChanged();
-	void OnCamThresholdChange(int Value);
-	void OnCamDistortChange(int Value);
-	void OnDrawGuidesChanged(int State);
-	void OnDrawMarkersChanged(int State);
-	void OnFindCalibChanged(int State);
 	void OnViewFeed(int ClientId, int StreamMode);
 	void InternalRecordingStart();
 	void OnResetFrameIds();

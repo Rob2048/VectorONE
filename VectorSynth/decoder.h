@@ -27,8 +27,6 @@ extern "C"
 	#include <libswscale/swscale.h>
 }
 
-//using namespace std;
-
 #define VID_W		1024
 #define VID_H		704
 #define INBUF_SIZE	8192
@@ -51,35 +49,24 @@ public:
 	Decoder();
 	~Decoder();
 
-	float			camSensitivity;
-	float			camThreshold;
-	float			camDistort;
 	int				frameSkip;
-	bool			drawGuides;
-	bool			drawMarkers;
 	bool			drawUndistorted;
 	volatile bool	findCalibrationSheet;
 	bool			blankFrame;
 	int				dataRecvBytes;
 	int				newFrames;
-	uint8_t			frameMaskData[128 * 88];
+	uint8_t			frameMaskData[64 * 44];
 
-	QMutex						calibMutex;
-	int							calibImageCount;
-	std::vector<std::vector<cv::Point2f>>	calibImagePoints;	
+	QMutex									calibMutex;
+	int										calibImageCount;
+	std::vector<std::vector<cv::Point2f>>	calibImagePoints;
 
-	
 	bool DoDecode(uint8_t* Data, int Len);
 	bool DoDecodeSingleFrame(uint8_t* Data, int Len, int* Consumed);
-
-	void TransferFrameToBuffer(uint8_t* Data);
-
 	bool isCalibrating() { return _calibrating;	};
-
 	uint8_t* GetFrameMatData() { return colMat.data; }
-
+	void TransferFrameToBuffer(uint8_t* Data);
 	void ShowBlankFrame();
-
 	void ProcessFrameLive();
 	void ProcessFrame();
 	QList<Marker2D> ProcessFrameNewMarkers();
@@ -104,27 +91,17 @@ private:
 	cv::Mat maskMat;
 
 	// Calibration
-	bool					_calibrating;
-	bool					_calibUndistortEnable;
-	std::vector<cv::Mat>			_calibRvecs;
-	std::vector<cv::Mat>			_calivTvecs;
-	cv::Size				_calibBoardSize;
-	float					_calibSquareSize;
-	int						_calibFramesSince;
-
+	bool		_calibrating;
+	
 	// Frame parsing.
 	int			destWidth;
 	int			destHeight;
-	int			lastFrame = 0;
-	int			_parsedFrames = 0;
+	int			_parsedFrames;
 	int			_frameLimit;
 	uint8_t		_postFrameData[VID_W * VID_H];
 
 	bool _Decode();
-	
 	void _initOpenCV();
-	void _detectValibSheet();
 	void _findCalibrationSheet();
-
 	void _CreateFrameGray();
 };

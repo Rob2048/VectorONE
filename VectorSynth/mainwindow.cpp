@@ -16,8 +16,10 @@ MainWindow::MainWindow(QWidget* parent) :
 
 	_mainTimer.start();
 
-	//ui->dockLog->hide();
+	ui->dockExtra->hide();
 	//ui->dockSceneView->hide();
+
+	//ui->dockTimeline->setTitleBarWidget(new QWidget());
 	
 	//this->setTabPosition(Qt::DockWidgetArea::TopDockWidgetArea, QTabWidget::TabPosition::North);
 
@@ -33,11 +35,17 @@ MainWindow::MainWindow(QWidget* parent) :
 	//this->resizeDocks({ ui->dockProps, ui->dockTrackers }, { 30, 80 }, Qt::Orientation::Horizontal);
 	//this->resizeDocks({ ui->dockTrackers, ui->dockSceneView }, { 100, 0 }, Qt::Orientation::Vertical);
 
+	_liveTake = new LiveTake();
+	_loadedTake = 0;
+	_take = _liveTake;
+
 	_glView = new SceneView(ui->sceneViewDockContents);
 	ui->sceneViewDockContents->layout()->addWidget(_glView);
 	_sceneViewTimer = new QTimer();
 	_sceneViewTimer->start(1000.0f / 60.0f);
 	connect(_sceneViewTimer, &QTimer::timeout, this, &MainWindow::OnSceneViewTimerTick);
+
+	_glView->take = _take;
 	
 	foreach(const QHostAddress &address, QNetworkInterface::allAddresses())
 	{
@@ -64,7 +72,6 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->timelineLayout->setAlignment(Qt::AlignTop);
 
 	_cameraView = new CameraView(this, this);
-	_cameraView->trackers = &_liveTrackers;
 	//ui->cameraViewPanel->layout()->removeWidget(ui->timeline);
 	ui->cameraViewPanel->layout()->addWidget(_cameraView);
 	//ui->cameraViewPanel->layout()->addWidget(ui->timeline);
@@ -96,6 +103,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	
 	connect(this, &MainWindow::OnServerStart, _serverWorker, &ServerThreadWorker::OnStart);
 	connect(this, &MainWindow::OnSendData, _serverWorker, &ServerThreadWorker::OnSendData);
+	connect(this, &MainWindow::OnUpdateParams, _serverWorker, &ServerThreadWorker::OnUpdateTracker);
 	connect(this, &MainWindow::OnResetFrameIds, _serverWorker, &ServerThreadWorker::OnResetFrameIds);
 	connect(this, &MainWindow::OnStartRecording, _serverWorker, &ServerThreadWorker::OnStartRecording);
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
@@ -113,11 +121,11 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(ui->btnStartRecording, &QPushButton::clicked, this, &MainWindow::OnStartRecordingClick);
 	connect(ui->btnLoadTake, &QPushButton::clicked, this, &MainWindow::OnLoadTakeClick);
 	connect(ui->btnSaveTake, &QPushButton::clicked, this, &MainWindow::OnSaveTakeClick);
-	connect(ui->btnGenerateMask, &QPushButton::clicked, this, &MainWindow::OnGenerateMaskClicked);
 	connect(ui->btnBuildFundamental, &QPushButton::clicked, this, &MainWindow::OnBuildFundamentalMatClicked);
 	connect(ui->btnBundleAdjust, &QPushButton::clicked, this, &MainWindow::OnBundleAdjustClicked);
 	connect(ui->btnBuild3D, &QPushButton::clicked, this, &MainWindow::OnBuild3DMarkersClicked);
 	connect(ui->btnAssignWorldBasis, &QPushButton::clicked, this, &MainWindow::OnAssignWorldBasisClicked);
+	connect(ui->btnPushToLive, &QPushButton::clicked, this, &MainWindow::OnPushToLiveClicked);
 	
 	// Tracker view buttons.
 	connect(ui->btnToggleUpdate, &QToolButton::clicked, this, &MainWindow::OnToggleUpdateClicked);
@@ -131,21 +139,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(ui->btnToggleMarkerSources, &QToolButton::clicked, this, &MainWindow::OnToggleMarkerSourcesClicked);
 	connect(ui->btnToggleRays, &QToolButton::clicked, this, &MainWindow::OnToggleRaysClicked);
 	connect(ui->btnToggleExpandedMarkers, &QToolButton::clicked, this, &MainWindow::OnToggleExpandedMarkersClicked);
-
-	// Exposure //ui->horizontalSlider->setEnabled(false);
-	// Frame Sync //ui->horizontalSlider_2->setEnabled(false);
-	// Sensitivity //ui->horizontalSlider_3->setEnabled(false);
-	ui->horizontalSlider_3->setMaximum(255);
-	ui->horizontalSlider_3->setMinimum(0);
-	connect(ui->horizontalSlider_3, &QSlider::valueChanged, _serverWorker, &ServerThreadWorker::OnCamSensitivityChange);
-
-	ui->horizontalSlider_2->setMaximum(255);
-	ui->horizontalSlider_2->setMinimum(0);
-	connect(ui->horizontalSlider_2, &QSlider::valueChanged, _serverWorker, &ServerThreadWorker::OnCamThresholdChange);
-
-	//ui->horizontalSlider->setMaximum(255);
-	//ui->horizontalSlider->setMinimum(0);
-	//connect(ui->horizontalSlider, &QSlider::valueChanged, _serverWorker, &ServerWorker::OnCamDistortChange);
+	connect(ui->btnShowLiveToolbar, &QToolButton::clicked, this, &MainWindow::OnShowLiveClicked);
 
 	ui->txtExposure->setValidator(new QIntValidator(1000, 23000, this));
 	connect(ui->txtExposure, &QLineEdit::editingFinished, this, &MainWindow::OnExposureEditingFinished);
@@ -153,16 +147,9 @@ MainWindow::MainWindow(QWidget* parent) :
 	ui->txtIso->setValidator(new QIntValidator(0, 1000, this));
 	connect(ui->txtIso, &QLineEdit::editingFinished, this, &MainWindow::OnIsoEditingFinished);
 
-	ui->txtFrameSkip->setValidator(new QIntValidator(0, 100, this));
-	connect(ui->txtFrameSkip, &QLineEdit::editingFinished, _serverWorker, &ServerThreadWorker::OnCamFrameSkipChanged);
-
 	ui->txtFps->setValidator(new QIntValidator(40, 120, this));
 	connect(ui->txtFps, &QLineEdit::editingFinished, this, &MainWindow::OnFpsEditingFinished);
 
-	//connect(ui->chkDrawGuides, &QCheckBox::stateChanged, _serverWorker, &ServerWorker::OnDrawGuidesChanged);
-	//connect(ui->chkMarkers, &QCheckBox::stateChanged, _serverWorker, &ServerWorker::OnDrawMarkersChanged);
-	connect(ui->chkFindCalib, &QCheckBox::stateChanged, _serverWorker, &ServerThreadWorker::OnFindCalibChanged);
-	
 	// Timeline
 	connect(_timeline, &TimelineWidget::valueChanged, this, &MainWindow::OnTimelineChange);
 	connect(ui->btnNextFrame, &QPushButton::clicked, this, &MainWindow::OnNextFrameClick);
@@ -199,7 +186,7 @@ MainWindow::~MainWindow()
 	_serverThread.wait();
 
 	delete ui;
-	delete _serverWorker;
+	//delete _serverWorker;
 }
 
 void MainWindow::OnTimelineChange(int Value)
@@ -315,7 +302,7 @@ void MainWindow::OnFpsEditingFinished()
 	int value = ui->txtFps->text().toInt();
 	QString cmd = QString("pf,") + QString::number(value) + QString("\n");
 	QByteArray test(cmd.toLatin1());
-	emit OnSendData(1, test);
+	emit OnSendData(-1, test);
 }
 
 void MainWindow::OnExposureEditingFinished()
@@ -323,7 +310,7 @@ void MainWindow::OnExposureEditingFinished()
 	int value = ui->txtExposure->text().toInt();
 	QString cmd = QString("pe,") + QString::number(value) + QString("\n");
 	QByteArray test(cmd.toLatin1());
-	emit OnSendData(1, test);
+	emit OnSendData(-1, test);
 }
 
 void MainWindow::OnIsoEditingFinished()
@@ -331,7 +318,7 @@ void MainWindow::OnIsoEditingFinished()
 	int value = ui->txtIso->text().toInt();
 	QString cmd = QString("pi,") + QString::number(value) + QString("\n");
 	QByteArray test(cmd.toLatin1());
-	emit OnSendData(1, test);
+	emit OnSendData(-1, test);
 }
 
 void MainWindow::OnCamSensitivityChange(int Value)
@@ -348,7 +335,7 @@ void MainWindow::OnTrackerConnected(int TrackerId)
 
 	LiveTracker* live = new LiveTracker();
 	live->id = tracker->id;
-	_liveTrackers[live->id] = live;
+	_liveTake->liveTrackers[live->id] = live;
 
 	_serverWorker->UnlockConnection(tracker);
 
@@ -357,8 +344,8 @@ void MainWindow::OnTrackerConnected(int TrackerId)
 
 void MainWindow::OnTrackerDisconnected(int TrackerId)
 {
-	delete _liveTrackers[TrackerId];
-	_liveTrackers.erase(TrackerId);
+	delete _liveTake->liveTrackers[TrackerId];
+	_liveTake->liveTrackers.erase(TrackerId);
 	_cameraView->update();
 }
 
@@ -369,7 +356,7 @@ void MainWindow::OnTrackerFrame(int TrackerId)
 	if (!tracker)
 		return;
 
-	LiveTracker* live = _liveTrackers[tracker->id];
+	LiveTracker* live = _liveTake->liveTrackers[tracker->id];
 
 	memcpy(live->frameData, tracker->postFrameData, VID_W * VID_H * 3);
 	live->frames += tracker->decoder->newFrames;
@@ -390,12 +377,12 @@ void MainWindow::OnTrackerInfoUpdate(int TrackerId)
 	if (!tracker)
 		return;
 
-	LiveTracker* live = _liveTrackers[tracker->id];
+	LiveTracker* live = _liveTake->liveTrackers[tracker->id];
 	live->connected = tracker->accepted;
 	live->serial = tracker->serial;
 	live->version = tracker->version;
-	live->name = tracker->name;
-	live->setMask(tracker->maskData);
+	live->name = tracker->props.name;
+	live->setMask(tracker->props.maskData);
 
 	_serverWorker->UnlockConnection(tracker);
 
@@ -409,7 +396,7 @@ void MainWindow::OnTrackerMarkersFrame(int TrackerId)
 	if (!tracker)
 		return;
 
-	LiveTracker* live = _liveTrackers[tracker->id];
+	LiveTracker* live = _liveTake->liveTrackers[tracker->id];
 	memcpy(live->markerData, tracker->markerData, tracker->markerDataSize);
 	live->markerDataSize = tracker->markerDataSize;
 	live->frames += tracker->decoder->newFrames;
@@ -426,6 +413,7 @@ void MainWindow::OnTrackerMarkersFrame(int TrackerId)
 
 void MainWindow::OnStartRecordingClick()
 {
+	// TODO: Create new take and save take info.
 	emit OnStartRecording();
 }
 
@@ -433,7 +421,6 @@ void MainWindow::OnResetFrameIdsClick()
 {
 	emit OnResetFrameIds();
 }
-
 
 void MainWindow::OnCalibrationStartClick()
 {
@@ -444,65 +431,6 @@ void MainWindow::OnCalibrationStartClick()
 void MainWindow::OnCalibrationStopClick()
 {
 	emit OnStopCalibrating();
-	
-	/*
-	TrackerConnection* tracker = _serverWorker->_GetTracker(1);
-
-	qDebug() << "Calibration Image Count:" << tracker->decoder->_calibImageCount;
-
-	// TODO: Wait for calibration frames to finish pouring in.
-	vector<vector<cv::Point3f>> objectPoints(1);
-
-	objectPoints[0].clear();
-
-	// Chessboard/Circles Grid
-	//for (int i = 0; i < _calibBoardSize.height; ++i)
-	//	for (int j = 0; j < _calibBoardSize.width; ++j)
-	//		objectPoints[0].push_back(Point3f(float(j*_calibSquareSize), float(i*_calibSquareSize), 0));
-
-	float squareSize = 34.2f * 0.5f;
-
-	// Asymmetric Circles Grid
-	for (int i = 0; i < 11; i++)
-		for (int j = 0; j < 4; j++)
-			objectPoints[0].push_back(cv::Point3f(float((2 * j + i % 2)*squareSize), float(i*squareSize), 0));
-
-	objectPoints.resize(tracker->decoder->_calibImagePoints.size(), objectPoints[0]);
-
-	cv::Size			imageSize(VID_W, VID_H);
-	cv::Mat				_calibCameraMatrix = cv::Mat::eye(3, 3, CV_64F);
-	cv::Mat				_calibDistCoeffs = cv::Mat::zeros(8, 1, CV_64F);
-	vector<cv::Mat>		_calibRvecs;
-	vector<cv::Mat>		_calivTvecs;
-
-	double rms = calibrateCamera(objectPoints, tracker->decoder->_calibImagePoints, imageSize, _calibCameraMatrix, _calibDistCoeffs, _calibRvecs, _calivTvecs, CV_CALIB_FIX_K4 | CV_CALIB_FIX_K5); // CV_CALIB_FIX_PRINCIPAL_POINT
-	bool ok = checkRange(_calibCameraMatrix) && checkRange(_calibDistCoeffs);
-
-	qDebug() << "Re-projection error reported by calibrateCamera: " << rms << " " << ok;
-
-	//std:vector<float> perViewErrors;
-	//double reprojError = computeReprojectionErrors(objectPoints, imagePoints, rvecs, tvecs, cameraMatrix, distCoeffs, perViewErrors);
-	//cout << "Reprojection Error: " << reprojError << "\n";
-
-	double fovX, fovY, focalLength, aspectRatio;
-	cv::Point2d principalPoint;
-
-	// 1640 × 1232: 3.674 x 2.760	
-	calibrationMatrixValues(_calibCameraMatrix, imageSize, 3.674, 2.066, fovX, fovY, focalLength, principalPoint, aspectRatio);
-
-	qDebug() << "Cam " << fovX << " " << fovY << " " << focalLength << " " << aspectRatio << " " << principalPoint.x << "," << principalPoint.y;
-
-	std::stringstream ss;
-	ss << "Dist Coefs: " << _calibDistCoeffs << "\n\nCalib Mat: " << _calibCameraMatrix;
-	qDebug() << ss.str().c_str() << _calibDistCoeffs.size().width << "x" << _calibDistCoeffs.size().height;
-
-	tracker->decoder->_calibCameraMatrix = _calibCameraMatrix.clone();
-	tracker->decoder->_calibDistCoeffs = _calibDistCoeffs.clone();
-	tracker->decoder->CalculateOptMat();
-
-	ui->lblCalibImageCount->setText(QString("Images: ") + QString::number(tracker->decoder->_calibImageCount));
-	ui->lblCalibError->setText(QString("Error: ") + QString::number(rms));
-	*/
 }
 
 void MainWindow::OnTimerTick()
@@ -516,7 +444,7 @@ void MainWindow::OnTimerTick()
 	//QHostAddress t(QHostAddress::Broadcast);
 	//qDebug() << t.toString();
 
-	for (std::map<int, LiveTracker*>::iterator it = _liveTrackers.begin(); it != _liveTrackers.end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = _liveTake->liveTrackers.begin(); it != _liveTake->liveTrackers.end(); ++it)
 	{
 		it->second->updateStats();
 	}
@@ -529,18 +457,18 @@ void MainWindow::OnSceneViewTimerTick()
 
 void MainWindow::OnLoadTakeClick()
 {
-	if (_take)
-		delete _take;
+	if (_loadedTake)
+		delete _loadedTake;
 
-	_take = new Take();
-	_take->LoadTake("take");
-	_glView->take = _take;
+	_loadedTake = new LoadedTake();
+	_loadedTake->LoadTake("take");
+	_glView->take = _loadedTake;
+	_cameraView->take = _loadedTake;
+	_take = _loadedTake;
 
 	_timeline->setParams(_take->timeFrames - 2);
 	_timelineCurrentFrame = -1;
 	_timelineRequestedFrame = 0;
-
-	_cameraView->trackers = &_take->liveTrackers;
 }
 
 void MainWindow::OnSaveTakeClick()
@@ -551,33 +479,12 @@ void MainWindow::OnSaveTakeClick()
 	_take->Save();
 }
 
-void MainWindow::OnGenerateMaskClicked()
-{
-	LiveTracker* tracker = GetTracker(_selectedTracker);
-
-	if (tracker)
-	{
-		tracker->generateMask();
-		changeMask(tracker);
-	}
-}
-
 void MainWindow::OnBuild3DMarkersClicked()
 {
 	if (_take)
 	{
 		_glView->restartPattern();
 		_take->Build3DMarkers(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
-
-		/*
-		for (int i = 0; i < _take->markers.size(); ++i)
-		{
-			for (int j = 0; j < _take->markers[i].size(); ++j)
-			{
-				_glView->pushSamplePoint(_take->markers[i][j].pos);
-			}
-		}
-		*/
 	}
 }
 
@@ -590,7 +497,6 @@ void MainWindow::OnAssignWorldBasisClicked()
 
 		//float scaleFactor = ((1.470f / n.length()) + (0.805f / t.length())) * 0.5f;
 		float scaleFactor = ((0.755 / n.length()) + (0.755f / t.length())) * 0.5f;
-
 		qDebug() << "Scale" << scaleFactor;
 
 		n.normalize();
@@ -601,13 +507,57 @@ void MainWindow::OnAssignWorldBasisClicked()
 		t.normalize();
 		QVector3D bt = QVector3D::crossProduct(n, t);
 
-		_take->wX = n;
-		_take->wY = bt;
-		_take->wZ = -t;
+		QVector3D wX = n;
+		QVector3D wY = bt;
+		QVector3D wZ = -t;
 
 		QVector3D p = _glView->_lastSelectedPos[1];
-		_take->wT = QVector3D(-p.x(), -p.y(), -p.z());
-		_take->wScale = scaleFactor;
+		QVector3D wT = QVector3D(-p.x(), -p.y(), -p.z());
+		
+		// Apply mat to all poses
+		QMatrix4x4 _pointWorldMat;
+		_pointWorldMat(0, 0) = wX.x();
+		_pointWorldMat(0, 1) = wX.y();
+		_pointWorldMat(0, 2) = wX.z();
+
+		_pointWorldMat(1, 0) = wY.x();
+		_pointWorldMat(1, 1) = wY.y();
+		_pointWorldMat(1, 2) = wY.z();
+
+		_pointWorldMat(2, 0) = wZ.x();
+		_pointWorldMat(2, 1) = wZ.y();
+		_pointWorldMat(2, 2) = wZ.z();
+
+		QMatrix4x4 transMat;
+		transMat.translate(wT);
+
+		for (int i = 0; i < _take->trackers.size(); ++i)
+		{
+			TakeTracker* t = _take->trackers[i];
+
+			QMatrix4x4 newWorldMat = t->worldMat;
+			
+			newWorldMat = _pointWorldMat * transMat * newWorldMat;
+			newWorldMat(0, 3) *= scaleFactor;
+			newWorldMat(1, 3) *= scaleFactor;
+			newWorldMat(2, 3) *= scaleFactor;
+			
+			cv::Mat pose = TakeTracker::PoseFromWorld(newWorldMat);
+			t->SetPose(pose);
+		}
+	}
+}
+
+void MainWindow::OnPushToLiveClicked()
+{
+	if (_take)
+	{
+		for (int i = 0; i < _take->trackers.size(); ++i)
+		{
+			TakeTracker* t = _take->trackers[i];
+			emit OnUpdateParams(t->serial, t->GetProps().GetJSON(false));
+			// TODO: Push to live trackers in live take.
+		}
 	}
 }
 
@@ -666,6 +616,14 @@ void MainWindow::OnToggleExpandedMarkersClicked()
 	_glView->showExpandedMarkers = ui->btnToggleExpandedMarkers->isChecked();
 }
 
+void MainWindow::OnShowLiveClicked()
+{
+	_take = _liveTake;
+	_cameraView->take = _take;
+	_glView->take = _take;
+	_cameraView->update();
+}
+
 void MainWindow::OnBuildFundamentalMatClicked()
 {
 	if (_take)
@@ -689,14 +647,15 @@ void MainWindow::viewFeed(int TrackedId, int StreamMode)
 
 void MainWindow::selectTracker(LiveTracker* Tracker)
 {
-	_selectedTracker = Tracker->id;
+	_take->selectedTracker = Tracker->id;
 
 	ui->txtId->setText(Tracker->name);
 	ui->txtExposure->setText(QString::number(Tracker->exposure));
 	ui->txtIso->setText(QString::number(Tracker->iso));
-	ui->txtFps->setText(QString::number(Tracker->targetFps));
+	ui->txtFps->setText(QString::number(Tracker->frameDuration));
 }
 
+/*
 LiveTracker* MainWindow::GetTracker(int TrackerId)
 {
 	if (_liveTrackers.find(TrackerId) == _liveTrackers.end())
@@ -706,6 +665,7 @@ LiveTracker* MainWindow::GetTracker(int TrackerId)
 
 	return _liveTrackers[TrackerId];
 }
+*/
 
 void MainWindow::OnBroadcastRead()
 {

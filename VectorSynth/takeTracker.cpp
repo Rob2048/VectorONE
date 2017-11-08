@@ -49,7 +49,55 @@ QMatrix4x4 TakeTracker::WorldFromPose(cv::Mat Pose)
 	result(2, 3) = trueT.at<double>(2);
 	result(3, 3) = 1;
 
+	qDebug() << "OrigT:" << Pose.at<double>(0, 3) << Pose.at<double>(1, 3) << Pose.at<double>(2, 3);
+	qDebug() << "TrueT:" << trueT.at<double>(0) << trueT.at<double>(1) << trueT.at<double>(2);
+
+	trueT = -(camR) * trueT;
+
+	qDebug() << "RestT:" << trueT.at<double>(0) << trueT.at<double>(1) << trueT.at<double>(2);
+
+
 	return result;
+}
+
+cv::Mat TakeTracker::PoseFromWorld(QMatrix4x4 World)
+{
+	cv::Mat pose = cv::Mat::eye(3, 4, CV_64F);
+	pose.at<double>(0, 0) = World(0, 0);
+	pose.at<double>(0, 1) = World(1, 0);
+	pose.at<double>(0, 2) = World(2, 0);
+	//pose.at<double>(0, 3) = 0;
+	pose.at<double>(1, 0) = World(0, 1);
+	pose.at<double>(1, 1) = World(1, 1);
+	pose.at<double>(1, 2) = World(2, 1);
+	//pose.at<double>(1, 3) = 0;
+	pose.at<double>(2, 0) = World(0, 2);
+	pose.at<double>(2, 1) = World(1, 2);
+	pose.at<double>(2, 2) = World(2, 2);
+	//pose.at<double>(2, 3) = 0;
+
+	cv::Mat trueT = cv::Mat(3, 1, CV_64F);
+	trueT.at<double>(0) = World(0, 3);
+	trueT.at<double>(1) = World(1, 3);
+	trueT.at<double>(2) = World(2, 3);
+
+	cv::Mat camR = cv::Mat(3, 3, CV_64F);
+	for (int iY = 0; iY < 3; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			camR.at<double>(iX, iY) = pose.at<double>(iX, iY);
+		}
+	}
+
+	cv::Mat camT = -(camR) * trueT;
+
+	pose.at<double>(0, 3) = camT.at<double>(0);
+	pose.at<double>(1, 3) = camT.at<double>(1);
+	pose.at<double>(2, 3) = camT.at<double>(2);
+	//pose.at<double>(3, 3) = 1;
+
+	return pose;
 }
 
 TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker)
@@ -76,8 +124,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	tracker->name = trackerObj["name"].toString();
 	tracker->exposure = trackerObj["exposure"].toInt();
 	tracker->iso = trackerObj["iso"].toInt();
-	tracker->threshold = trackerObj["threshold"].toDouble();
-	tracker->sensitivity = trackerObj["sensitivity"].toDouble();
 	tracker->frameCount = 0;
 	tracker->vidPlaybackFrame = 0;
 	tracker->mode = 0;
@@ -86,17 +132,13 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	LiveTracker->id = tracker->id;
 	LiveTracker->name = tracker->name;
 	LiveTracker->serial = tracker->serial;
+
+	tracker->decoder = new Decoder();
 	
 	QJsonArray jsonIntrinMat = trackerObj["intrinsic"].toObject()["camera"].toArray();
 	QJsonArray jsonIntrinDist = trackerObj["intrinsic"].toObject()["distortion"].toArray();
 	QJsonArray jsonExtrinProj = trackerObj["extrinsic"].toObject()["pose"].toArray();
 	
-	tracker->decoder = new Decoder();
-	tracker->decoder->camSensitivity = tracker->sensitivity;
-	tracker->decoder->drawMarkers = false;
-	tracker->decoder->drawUndistorted = false;
-	tracker->decoder->camThreshold = tracker->threshold;
-
 	// Default cam calibration.
 	/*
 	calibDistCoeffs.at<double>(0) = -0.332945;
@@ -134,9 +176,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	tracker->camMat.at<double>(1, 2) = jsonIntrinMat[7].toDouble();
 	tracker->camMat.at<double>(2, 2) = jsonIntrinMat[8].toDouble();
 
-	//optCamMat = getOptimalNewCameraMatrix(calibCameraMatrix, calibDistCoeffs, Size(VID_W, VID_H), 0.0, Size(VID_W, VID_H), NULL, false);
-	tracker->camMatOpt = cv::getOptimalNewCameraMatrix(tracker->camMat, tracker->distCoefs, cv::Size(VID_W, VID_H), 0.0, cv::Size(VID_W, VID_H), NULL, true);
-
 	cv::Mat pose = cv::Mat::eye(3, 4, CV_64F);
 	for (int iY = 0; iY < 4; ++iY)
 	{
@@ -146,8 +185,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		}
 	}
 
-	tracker->SetPose(pose);
-
 	QString maskStr = trackerObj["mask"].toString();
 	for (int i = 0; i < maskStr.size(); ++i)
 	{
@@ -156,19 +193,9 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 	LiveTracker->setMask(tracker->mask);
 	memcpy(tracker->decoder->frameMaskData, tracker->mask, sizeof(mask));
 
-	/*
-	char fileName[256];
-	QString maskFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".mask";
-	FILE* maskFile = fopen(maskFilePath.toLatin1(), "rb");
-
-	if (maskFile)
-	{
-		fread(tracker->mask, sizeof(mask), 1, maskFile);
-		LiveTracker->setMask(tracker->mask);
-		memcpy(tracker->decoder->frameMaskData, tracker->mask, sizeof(mask));
-		fclose(maskFile);
-	}
-	*/
+	//optCamMat = getOptimalNewCameraMatrix(calibCameraMatrix, calibDistCoeffs, Size(VID_W, VID_H), 0.0, Size(VID_W, VID_H), NULL, false);
+	tracker->camMatOpt = cv::getOptimalNewCameraMatrix(tracker->camMat, tracker->distCoefs, cv::Size(VID_W, VID_H), 0.0, cv::Size(VID_W, VID_H), NULL, true);
+	tracker->SetPose(pose);
 
 	QString infoFilePath = "project/" + TakeName + "/" + QString::number(Serial) + ".trakvid";
 	FILE* vidFile = fopen(infoFilePath.toLatin1(), "rb");
@@ -314,52 +341,6 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 		qDebug() << "No blobs file";
 	}
 	
-	/*
-	QFile m2dFile("project/" + TakeName + "/" + QString::number(Serial) + ".m2d");
-	if (m2dFile.open(QIODevice::ReadOnly))
-	{
-		QDataStream stream(&m2dFile);
-
-		for (int i = 0; i < tracker->vidFrameData.count(); ++i)
-		{
-			//int markerCount = 0;
-			//stream >> markerCount;
-
-			//for (int m = 0; m < markerCount; ++m)
-			{
-				//QVector2D pos;
-				//stream >> pos;
-				//tracker->vidFrameData[i].markers.push_back(pos);
-			}
-
-			int newMarkerCount = 0;
-			stream >> newMarkerCount;
-
-			for (int m = 0; m < newMarkerCount; ++m)
-			{
-				QVector2D pos;
-				QVector2D distPos;
-				QVector4D bounds;
-				stream >> bounds;
-				stream >> pos;
-				stream >> distPos;
-				Marker2D marker = {};
-				marker.pos = pos;
-				marker.bounds = bounds;
-				marker.distPos = distPos;
-				marker.trackerId = Id;
-				tracker->vidFrameData[i].newMarkers.push_back(marker);
-			}
-		}
-
-		m2dFile.close();
-	}
-	else
-	{
-		qDebug() << "No 2D markers file";
-	}
-	*/
-
 	qDebug() << "Tracker: Loaded" << Serial;
 
 	//*
@@ -376,6 +357,7 @@ TakeTracker* TakeTracker::Create(int Id, QString TakeName, uint32_t Serial, QStr
 TakeTracker::TakeTracker()
 {
 	drawMarkerFrameIndex = 0;
+	takeClipData = 0;
 }
 
 TakeTracker::~TakeTracker()
@@ -498,83 +480,7 @@ void TakeTracker::Save()
 {
 	qDebug() << "Tracker: Save" << id << takeName << name;
 
-	QJsonObject jsonObj;
-	jsonObj["name"] = name;
-	jsonObj["exposure"] = exposure;
-	jsonObj["iso"] = iso;
-	jsonObj["threshold"] = threshold;
-	jsonObj["sensitivity"] = sensitivity;
-
-	QString maskString;
-	for (int i = 0; i < sizeof(mask); ++i)
-	{
-		maskString += mask[i] + 48;
-	}
-	jsonObj["mask"] = maskString;
-	
-	QJsonArray jsonIntrinMat;
-	jsonIntrinMat.append(camMat.at<double>(0, 0));
-	jsonIntrinMat.append(camMat.at<double>(1, 0));
-	jsonIntrinMat.append(camMat.at<double>(2, 0));
-	jsonIntrinMat.append(camMat.at<double>(0, 1));
-	jsonIntrinMat.append(camMat.at<double>(1, 1));
-	jsonIntrinMat.append(camMat.at<double>(2, 1));
-	jsonIntrinMat.append(camMat.at<double>(0, 2));
-	jsonIntrinMat.append(camMat.at<double>(1, 2));
-	jsonIntrinMat.append(camMat.at<double>(2, 2));
-
-	QJsonArray jsonIntrinDist;
-	jsonIntrinDist.append(distCoefs.at<double>(0));
-	jsonIntrinDist.append(distCoefs.at<double>(1));
-	jsonIntrinDist.append(distCoefs.at<double>(2));
-	jsonIntrinDist.append(distCoefs.at<double>(3));
-	jsonIntrinDist.append(distCoefs.at<double>(4));
-
-	QJsonObject jsonIntrin;
-	jsonIntrin["camera"] = jsonIntrinMat;
-	jsonIntrin["distortion"] = jsonIntrinDist;
-
-	jsonObj["intrinsic"] = jsonIntrin;
-
-	QJsonArray jsonExtrinProj;
-	for (int iY = 0; iY < 4; ++iY)
-	{
-		for (int iX = 0; iX < 3; ++iX)
-		{
-			jsonExtrinProj.append(rtMat.at<double>(iX, iY));
-		}
-	}
-	
-	/*
-	QJsonArray jsonExtrinWorld;
-	for (int iY = 0; iY < 4; ++iY)
-	{
-		for (int iX = 0; iX < 4; ++iX)
-		{
-			jsonExtrinWorld.append(worldMat(iX, iY));
-		}
-	}
-
-	QJsonArray jsonExtrinFundamental;
-	for (int iY = 0; iY < 3; ++iY)
-	{
-		for (int iX = 0; iX < 3; ++iX)
-		{
-			jsonExtrinFundamental.append(decoder->fundamentalMat.at<double>(iX, iY));
-		}
-	}
-	*/
-
-	QJsonObject jsonExtrin;
-	jsonExtrin["pose"] = jsonExtrinProj;
-	//jsonExtrin["world"] = jsonExtrinWorld;
-	//jsonExtrin["fundamental"] = jsonExtrinFundamental;
-
-	jsonObj["extrinsic"] = jsonExtrin;
-
-	QJsonDocument jsonDoc(jsonObj);
-	QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
-
+	QByteArray jsonBytes = GetProps().GetJSON(true);
 	QFile file("project/" + takeName + "/" + QString::number(serial) + ".tracker");
 
 	if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
@@ -585,39 +491,12 @@ void TakeTracker::Save()
 
 	file.write(jsonBytes);
 	file.close();
-
-	/*
-	QFile m2dFile("project/" + takeName + "/" + QString::number(serial) + ".m2d");
-
-	if (!m2dFile.open(QIODevice::WriteOnly))
-	{
-		qDebug() << "Tracker: Save file failed";
-		return;
-	}
-
-	QDataStream m2dStream(&m2dFile);
-
-	for (int i = 0; i < vidFrameData.count(); ++i)
-	{
-		m2dStream << vidFrameData[i].newMarkers.count();
-
-		for (int iM = 0; iM < vidFrameData[i].newMarkers.count(); ++iM)
-		{
-			Marker2D* m = &vidFrameData[i].newMarkers[iM];
-			m2dStream << m->bounds << m->pos << m->distPos;
-		}
-	}
-
-	m2dFile.close();
-	*/
 }
 
 void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
 {
 	qDebug() << "Build 2D Markers" << name;
-	int startKeyFrameIndex;
-	int startFrameIndex;
-
+	
 	int localStartFrame = StartFrame;
 	int localEndFrame = EndFrame;
 
@@ -657,8 +536,6 @@ void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
 		return;
 	}
 
-	int processFrameCount = localEndFrame - localStartFrame + 1;
-
 	DecodeFrame(localStartFrame, keyFrameIndex);
 
 	for (int i = localStartFrame + 1; i <= localEndFrame; ++i)
@@ -682,9 +559,6 @@ void TakeTracker::Build2DMarkers(int StartFrame, int EndFrame)
 
 void TakeTracker::UndistortMarkers(int StartFrame, int EndFrame)
 {
-	int startKeyFrameIndex;
-	int startFrameIndex;
-
 	int localStartFrame = StartFrame;
 	int localEndFrame = EndFrame;
 
@@ -730,9 +604,6 @@ void TakeTracker::UndistortMarkers(int StartFrame, int EndFrame)
 void TakeTracker::BuildRays(int StartFrame, int EndFrame)
 {
 	UndistortMarkers(StartFrame, EndFrame);
-
-	int startKeyFrameIndex;
-	int startFrameIndex;
 
 	int localStartFrame = StartFrame;
 	int localEndFrame = EndFrame;
@@ -852,5 +723,20 @@ QVector2D TakeTracker::ProjectPoint(QVector3D P)
 	result.setX(imgPt.at<double>(0) / imgPt.at<double>(2));
 	result.setY(imgPt.at<double>(1) / imgPt.at<double>(2));
 
+	return result;
+}
+
+TrackerProperties TakeTracker::GetProps()
+{
+	TrackerProperties result;
+
+	result.name = name;
+	memcpy(result.maskData, mask, sizeof(mask));
+	result.exposure = exposure;
+	result.iso = iso;
+	result.distCoefs = distCoefs.clone();
+	result.camMat = camMat.clone();
+	result.rtMat = rtMat.clone();
+	
 	return result;
 }

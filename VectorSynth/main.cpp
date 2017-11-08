@@ -108,7 +108,7 @@ DWORD WINAPI timeSyncThreadProc(LPVOID Parameter)
 		*(float*)(msg + 16) = pce->avgTime;
 		sendto(s, msg, 20, 0, (SOCKADDR*)&clientAddr, clientLen);
 
-		char outMsg[256];
+		//char outMsg[256];
 		//sprintf(outMsg, "Got UDP packet (%u) %s:%d - %d %d %d %d %f\n", clientAddr.sin_addr, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), bytesRead, recvTimeUs, guessedTime, diff, pce->avgTime);
 		//OutputDebugStringA(outMsg);
 	}

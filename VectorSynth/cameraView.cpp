@@ -19,6 +19,7 @@ CameraView::CameraView(QWidget* Parent, MainWindow* Main) :
 	_mainFont = QFont("Arial", 8);
 	_detailFont = QFont("Arial", 7);
 	_largeFont = QFont("Arial", 50);
+	_medFont = QFont("Arial", 20);
 	mode = 0;
 	take = 0;
 	hoveredId = -1;
@@ -40,6 +41,7 @@ CameraView::CameraView(QWidget* Parent, MainWindow* Main) :
 	showDistortedMarkers = false;
 	showUndistortedMarkers = true;
 	showReprojectedMarkers = true;
+	alignHorizontal = true;
 }
 
 QPointF CameraView::_GetVPointF(float X, float Y)
@@ -79,6 +81,19 @@ void CameraView::paintEvent(QPaintEvent* Event)
 	QPainter qp(this);
 	qp.fillRect(0, 0, width(), height(), QColor(28, 30, 32));
 
+	//qp.setPen(QPen(QColor(28 + 8, 30 + 8, 32 + 8), 2.0f / viewZoom));
+	qp.setPen(QPen(QColor(100, 30 + 8, 32 + 8), 2.0f / viewZoom));
+	qp.setFont(_medFont);
+
+	if (take->isLive)
+	{
+		qp.drawText(5, 30, "LIVE");
+	}
+	else
+	{
+		qp.drawText(5, 30, "PRERECORDED");
+	}
+
 	qp.setFont(_mainFont);
 
 	qp.translate(width() / 2, height() / 2);
@@ -88,14 +103,18 @@ void CameraView::paintEvent(QPaintEvent* Event)
 
 	int trackerCount = 0;
 
-	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = take->liveTrackers.begin(); it != take->liveTrackers.end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
-		float tX = trackerCount * (VID_W + 10);
-		//float tX = 0;
+		
+		float tX = 0;
 		float tY = 0;
-		//float tY = trackerCount * (VID_H + 10);
 
+		if (alignHorizontal)
+			tY = trackerCount * (VID_H + 10);
+		else
+			tX = trackerCount * (VID_W + 10);
+		
 		qp.setTransform(_vt);
 
 		QImage img = QImage((uchar*)tracker->frameData, VID_W, VID_H, QImage::Format::Format_RGB888);
@@ -217,10 +236,13 @@ void CameraView::paintEvent(QPaintEvent* Event)
 
 			if (tracker->vidFrameData.count() > 0)
 			{
-				float tX = (VID_W + 10) * t;
-				//float tX = 0.0f;
-				//float tY = (VID_H + 10) * t;
-				float tY = 0.0f;
+				float tX = 0;
+				float tY = 0;
+
+				if (alignHorizontal)
+					tY = t * (VID_H + 10);
+				else
+					tX = t * (VID_W + 10);
 
 				//qp.setBrush(QBrush(QColor::fromRgb(255, 128, 32), Qt::BrushStyle::SolidPattern));
 				//qp.setPen(Qt::PenStyle::NoPen);
@@ -273,11 +295,13 @@ void CameraView::paintEvent(QPaintEvent* Event)
 			{
 				TakeTracker* tracker = take->trackers[t];
 
-				//float tX = (VID_W + 10) * (1 - t);
 				float tX = 0;
+				float tY = 0;
 
-				if (t == 0)
-					tX = (VID_W + 10);
+				if (alignHorizontal)
+					tY = t * (VID_H + 10);
+				else
+					tX = t * (VID_W + 10);
 
 				for (int m = 0; m < take->markers[timelineFrame].size(); ++m)
 				{
@@ -293,8 +317,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 					float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 					float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
-					float tX = (VID_W + 10) * t;
-					qp.drawEllipse(QPointF(tX + x, y), 2.0f, 2.0f);
+					qp.drawEllipse(QPointF(tX + x, tY + y), 2.0f, 2.0f);
 				}				
 			}
 
@@ -307,7 +330,13 @@ void CameraView::paintEvent(QPaintEvent* Event)
 			for (int t = 0; t < take->trackers.count(); ++t)
 			{
 				TakeTracker* tracker = take->trackers[t];
-				float tX = (VID_W + 10) * t;
+				float tX = 0;
+				float tY = 0;
+
+				if (alignHorizontal)
+					tY = t * (VID_H + 10);
+				else
+					tX = t * (VID_W + 10);
 
 				// Draw rays from all other trackers
 				for (int tP = 0; tP < take->trackers.count(); ++tP)
@@ -333,8 +362,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 						float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 						float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
-						float tX = (VID_W + 10) * t;
-						oto = _GetVPointF(tX + x, y);
+						oto = _GetVPointF(tX + x, tY + y);
 
 						qp.setPen(QPen(QColor::fromRgb(255, 255, 0)));
 						qp.drawEllipse(oto, 3.0f, 3.0f);
@@ -357,8 +385,7 @@ void CameraView::paintEvent(QPaintEvent* Event)
 							float x = imgPt.at<double>(0) / imgPt.at<double>(2);
 							float y = imgPt.at<double>(1) / imgPt.at<double>(2);
 
-							float tX = (VID_W + 10) * t;
-							QPointF rayE = _GetVPointF(tX + x, y);
+							QPointF rayE = _GetVPointF(tX + x, tY + y);
 
 							qp.setPen(QPen(QColor::fromRgb(255, 255, 0)));
 							qp.drawEllipse(rayE, 3.0f, 3.0f);
@@ -583,7 +610,7 @@ void CameraView::wheelEvent(QWheelEvent* Event)
 LiveTracker* CameraView::_GetTracker(int X, int Y, QVector2D* TrackerSpace)
 {
 	int trackerCount = 0;
-	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = take->liveTrackers.begin(); it != take->liveTrackers.end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
 		float tX = trackerCount * (VID_W + 10);
@@ -611,7 +638,7 @@ LiveTracker* CameraView::_GetTracker(int X, int Y, QVector2D* TrackerSpace)
 void CameraView::_DeselectTrackers()
 {
 	int trackerCount = 0;
-	for (std::map<int, LiveTracker*>::iterator it = trackers->begin(); it != trackers->end(); ++it)
+	for (std::map<int, LiveTracker*>::iterator it = take->liveTrackers.begin(); it != take->liveTrackers.end(); ++it)
 	{
 		LiveTracker* tracker = it->second;
 		tracker->selected = false;

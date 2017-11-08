@@ -209,17 +209,22 @@ class NetworkReaderThread(threading.Thread):
 							print('Set FPS ' + args[1])
 							setCamFps = int(args[1])
 						elif args[0] == 'gi':
-							#mask = blobdetect.getmask()
-							data = struct.pack('III', 4, version, deviceSerial)							
+							configStr = json.dumps(config)
+							data = struct.pack('IIII', 4, version, deviceSerial, len(configStr))
 							netSend.put(data)
-							netSend.put(config['mask'])
+							netSend.put(configStr)
 						elif args[0] == 'cm':
-							print('Set Mode ' + args[1])
+							print('Set camera mode ' + args[1])
 							setCamMode = int(args[1])
 						elif args[0] == 'sm':
 							print('Set mask')
 							config['mask'] = args[1]
 							blobdetect.setmask(args[1])
+							SaveConfig()
+						elif args[0] == 'sp':
+							print('Set properties')
+							config.update(json.loads(data[3:]))
+							blobdetect.setmask(config['mask'])
 							SaveConfig()
 
 				except Exception,e:

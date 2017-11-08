@@ -31,6 +31,7 @@ signals:
 
 	void OnServerStart();
 	void OnSendData(int ClientId, QByteArray Data);
+	void OnUpdateParams(unsigned int SerialId, QByteArray Props);
 	void OnMaskChange(int ClientId, QByteArray Data);
 	void OnStartLiveFeed(int ClientId);
 	void OnResetFrameIds();
@@ -73,11 +74,11 @@ public slots:
 
 	void OnTimelineChange(int Value);
 
-	void OnGenerateMaskClicked();
 	void OnBuild3DMarkersClicked();
 	void OnBuildFundamentalMatClicked();
 	void OnBundleAdjustClicked();
 	void OnAssignWorldBasisClicked();
+	void OnPushToLiveClicked();
 
 	// Tracker view buttons.
 	void OnToggleUpdateClicked();
@@ -91,6 +92,7 @@ public slots:
 	void OnToggleMarkerSourcesClicked();
 	void OnToggleRaysClicked();
 	void OnToggleExpandedMarkersClicked();
+	void OnShowLiveClicked();
 
 	void OnPlayTimerTick();
 
@@ -113,11 +115,10 @@ private:
 	QSignalMapper*		_deviceListMapper;
 	QElapsedTimer		_mainTimer;
 
+	LiveTake*			_liveTake;
+	LoadedTake*			_loadedTake;
 	Take*				_take;
-	std::map<int, LiveTracker*> _liveTrackers;
-	TakeTracker*		_selectedTakeTracker;
-	int					_selectedTracker;
-
+	
 	int					_timelineRequestedFrame;
 	int					_timelineCurrentFrame;
 
@@ -131,7 +132,6 @@ public:
 
 	void viewFeed(int TrackedId, int StreamMode);
 	void selectTracker(LiveTracker* Tracker);
-	LiveTracker* GetTracker(int TrackerId);
-
+	//LiveTracker* GetTracker(int TrackerId);
 	void changeMask(LiveTracker* Tracker);
 };

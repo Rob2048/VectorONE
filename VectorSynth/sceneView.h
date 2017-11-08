@@ -123,8 +123,7 @@ private:
 	float					_camY;
 	float					_camZoom;
 	QVector3D				_camTranslate;
-	QMatrix4x4				_pointWorldMat;
-
+	
 	Model					_sphereModel;
 
 	QVector3D				_pickPos;

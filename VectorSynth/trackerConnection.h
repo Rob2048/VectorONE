@@ -3,10 +3,27 @@
 #include <QMainWindow>
 #include <QtNetwork>
 #include "decoder.h"
+#include <QVector3D>
 
 QT_USE_NAMESPACE
 
 class ServerThreadWorker;
+
+class TrackerProperties
+{
+public:
+
+	QString		name;
+	uint8_t		maskData[64 * 44];
+	int			exposure;
+	int			iso;
+	cv::Mat		distCoefs;
+	cv::Mat		camMat;
+	cv::Mat		rtMat;
+	
+	void Populate(QByteArray JSON);
+	QByteArray GetJSON(bool Pretty);
+};
 
 class TrackerConnection : public QObject
 {
@@ -24,10 +41,12 @@ public:
 	
 	// Tracker params.
 	uint32_t		id;
-	QString			name;
-	uint32_t		serial;
 	int				version;
-	uint8_t			maskData[64 * 44];
+	uint32_t		serial;
+
+	//QString			name;
+	//uint8_t			maskData[64 * 44];
+	TrackerProperties props;
 
 	// Frame data.
 	Decoder*		decoder;
@@ -44,6 +63,7 @@ public:
 	void StopRecording();
 
 	void RecordData(uint8_t* Data, int Len);
+	void UpdateProperties(QByteArray Props);
 
 signals:
 

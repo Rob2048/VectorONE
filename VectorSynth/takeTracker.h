@@ -5,6 +5,7 @@
 #include <QDebug>
 #include "decoder.h"
 #include "liveTracker.h"
+#include "trackerConnection.h"
 
 class VidFrameData
 {
@@ -22,6 +23,7 @@ class TakeTracker
 public:
 
 	static QMatrix4x4 WorldFromPose(cv::Mat Pose);
+	static cv::Mat PoseFromWorld(QMatrix4x4 World);
 
 	static TakeTracker* Create(int Id, QString TakeName, uint32_t Serial, QString FilePath, LiveTracker* LiveTracker);
 
@@ -32,13 +34,12 @@ public:
 	int					vidPlaybackFrame;
 
 	// Tracker params.
-	int					id;
+	int					id;	
+	uint32_t			serial;
+
 	QString				name;
-	uint32_t			serial;	
 	int					exposure;
 	int					iso;
-	float				threshold;
-	float				sensitivity;
 	uint8_t				mask[64 * 44];
 	cv::Mat				distCoefs;
 	cv::Mat				camMatOpt;
@@ -69,6 +70,7 @@ public:
 	void SetPose(cv::Mat Pose);
 	void SetCamDist(cv::Mat Cam, cv::Mat Dist);
 	QVector2D ProjectPoint(QVector3D P);
+	TrackerProperties GetProps();
 
 private:
 

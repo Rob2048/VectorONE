@@ -352,56 +352,9 @@ void SceneView::paintGL()
 	_camViewMat.translate(_camTranslate);
 	_camViewMat.rotate(-90, QVector3D(1, 0, 0));
 
-	_pointWorldMat.setToIdentity();	
-	//_pointWorldMat.rotate(-17.5f, QVector3D(0, 1, 0));
-	//_pointWorldMat.rotate(5, QVector3D(1, 0, 0));
-	//_pointWorldMat.scale(1.47f / 1.009f);
-
-	//*
-	if (take)
-	{
-		_pointWorldMat(0, 0) = take->wX.x();
-		_pointWorldMat(0, 1) = take->wX.y();
-		_pointWorldMat(0, 2) = take->wX.z();
-
-		_pointWorldMat(1, 0) = take->wY.x();
-		_pointWorldMat(1, 1) = take->wY.y();
-		_pointWorldMat(1, 2) = take->wY.z();
-
-		_pointWorldMat(2, 0) = take->wZ.x();
-		_pointWorldMat(2, 1) = take->wZ.y();
-		_pointWorldMat(2, 2) = take->wZ.z();
-
-		_pointWorldMat.translate(take->wT);
-
-		QMatrix4x4 scaleMat;
-		scaleMat.scale(take->wScale);
-		_pointWorldMat = scaleMat * _pointWorldMat;
-	}
-	//*/
-
 	QMatrix4x4 modelMat;
 	modelMat.setToIdentity();
 	modelMat.scale(0.1f);
-
-	/*
-	QVector3D dir = _scanData[_scanPatternVertCount + 1].position - _scanData[_scanPatternVertCount + 0].position;
-	dir.normalize();
-	QVector3D forward = dir;
-	QVector3D up = QVector3D::crossProduct(QVector3D(0, 0, 1), forward).normalized();
-	QVector3D right = QVector3D::crossProduct(forward, up);
-	modelMat.setColumn(0, QVector4D(right, 0));
-	modelMat.setColumn(1, QVector4D(forward, 0));
-	modelMat.setColumn(2, QVector4D(up, 0));
-	modelMat.setColumn(3, QVector4D(0, 0, 0, 1));
-	QMatrix4x4 m2;
-	m2.translate(_scanData[_scanPatternVertCount + 0].position);
-	modelMat.setToIdentity();
-	modelMat.rotate(_scanData[_scanPatternVertCount + 1].position.x() * 22.5f, QVector3D(1, 0, 0));
-	modelMat.rotate(_scanData[_scanPatternVertCount + 1].position.y() * 22.5f, QVector3D(0, 1, 0));
-	modelMat = m2 * modelMat;
-	modelMat.scale(0.1f);
-	*/
 
 	int shadedVertexLocation = _shadedShader.attributeLocation("a_position");
 	int shadedColorLocation = _shadedShader.attributeLocation("a_color");
@@ -443,12 +396,12 @@ void SceneView::paintGL()
 	{
 		for (int fI = timelineFrame - 100; fI <= timelineFrame; ++fI)
 		{
-			if (fI >= 0)
+			if (fI >= 0 && fI < take->timeFrames)
 			{
 				for (int i = 0; i < take->markers[fI].size(); ++i)
 				{
 					Marker3D* m = &take->markers[fI][i];
-					QVector3D markerPos = (_pointWorldMat * QVector4D(m->pos.x(), m->pos.y(), m->pos.z(), 1.0f)).toVector3DAffine();
+					QVector3D markerPos = (QVector4D(m->pos.x(), m->pos.y(), m->pos.z(), 1.0f)).toVector3DAffine();
 					QMatrix4x4 markerMat;
 					markerMat.translate(markerPos);
 
@@ -542,7 +495,7 @@ void SceneView::paintGL()
 	//glDisable(GL_DEPTH_TEST);
 	glEnable(GL_PROGRAM_POINT_SIZE);
 
-	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat);
+	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat);
 
 	_scanPatternBuffer.bind();
 	_scanPatternBuffer.write(0, _scanData, _scanCurrentMaxPoints * sizeof(VertexData));
@@ -643,7 +596,7 @@ void SceneView::paintGL()
 		gizmoPush({ _lastSelectedPos[i + 1], { 0.5f, 0.5f, 0.5f } });
 	}
 	
-	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat);
+	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat);
 	_gizmoBuffer.write(0, _gizmoData, _gizmoIndex * sizeof(VertexData));
 	glDrawArrays(GL_LINES, 0, _gizmoIndex);
 
@@ -705,7 +658,6 @@ void SceneView::paintGL()
 			float fld = 0.1f;
 
 			cv::Matx33d m33((double*)take->trackers[i]->camMatOpt.ptr());
-			//cv::Matx33d m33((double*)take->trackers[0]->decoder->_calibCameraMatrix.ptr());
 			cv::Matx33d m33Inv = m33.inv();
 
 			cv::Matx31d imgPt(0, 0, 1);
@@ -728,58 +680,16 @@ void SceneView::paintGL()
 			gizmoPush({ { 0, 0, 0 },sc });
 			gizmoPush({ { (float)imgPt(0, 0) * fld, (float)imgPt(1, 0) * fld, (float)imgPt(2, 0) * fld }, ec });
 
-			/*
-			// Marker projections.
-			for (int mIdx = 0; mIdx < take->markers[timelineFrame].size(); ++mIdx)
-			{
-				Marker3D* m = &take->markers[timelineFrame][mIdx];
-				QMatrix4x4 markerMat;
-				markerMat.translate(m->pos);
-				markerMat.scale(0.1f);
-
-				if (i == 0)
-					imgPt = cv::Matx31d(m->cam1marker.pos.x(), m->cam1marker.pos.y(), 1);
-				else
-					imgPt = cv::Matx31d(m->cam2marker.pos.x(), m->cam2marker.pos.y(), 1);
-
-				imgPt = m33Inv * imgPt;
-				QVector3D d((float)imgPt(0, 0), (float)imgPt(1, 0), (float)imgPt(2, 0));
-				d.normalize();
-
-				float mDist = (take->trackers[i]->decoder->worldPos - m->pos).length();
-
-				gizmoPush({ { 0, 0, 0 },{ 0.25f, 0.5f, 0.25f } });
-				//gizmoPush({ { d * mDist },{ 0.125f, 0.25f, 0.125f } });
-				gizmoPush({ { d * mDist },{ 0.25f, 0.5f, 0.25f } });
-
-				//markerFound = true;
-				if (i == 0)
-				{
-					po[0] = QVector3D(0, 0, 0);
-					pd[0] = d;
-				}
-				else
-				{
-					po[1] = (take->trackers[i]->decoder->worldMat * QVector4D(0, 0, 0, 1)).toVector3D();
-					pd[1] = (take->trackers[i]->decoder->worldMat * QVector4D(d, 0)).toVector3D();
-				}
-			}
-			*/
-
-			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->worldMat);
+			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * take->trackers[i]->worldMat);
 			_gizmoBuffer.write(0, _gizmoData, _gizmoIndex * sizeof(VertexData));
 			glDrawArrays(GL_LINES, 0, _gizmoIndex);
-
-			//_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * (take->trackers[0]->decoder->refWorldMat.inverted() * take->trackers[i]->decoder->refWorldMat));
-			//_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat * take->trackers[i]->decoder->refWorldMat);
-			//glDrawArrays(GL_LINES, 0, _gizmoIndex);
 		}
 
 		// Draw marker rays closest intersection line.
 		if (markerFound)
 		{
 			gizmoClear();
-			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat * _pointWorldMat);
+			_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat);
 
 			gizmoPush({ po[0], { 0, 0, 1 } });
 			gizmoPush({ po[0] + pd[0],{ 0, 0, 1 } });
@@ -882,14 +792,14 @@ void SceneView::wheelEvent(QWheelEvent* Event)
 void SceneView::_mousePick(QVector2D ScreenPos)
 {
 	QVector2D ndc = (ScreenPos / QVector2D(width(), height())) * QVector2D(2, -2) - QVector2D(1, -1);
-	QMatrix4x4 invViewProj = (_projMat * _camViewMat * _pointWorldMat).inverted();
+	QMatrix4x4 invViewProj = (_projMat * _camViewMat).inverted();
 	QVector4D p(ndc.x(), ndc.y(), 1.002f, 1.0f);
 	QVector4D projP = invViewProj * p;
 
 	_pickDir = QVector3D(projP.x() / projP.w(), projP.y() / projP.w(), projP.z() / projP.w());
 	_pickDir.normalize();
 
-	QVector4D hcPos = (_camViewMat * _pointWorldMat).inverted() * QVector4D(0, 0, 0, 1);
+	QVector4D hcPos = (_camViewMat).inverted() * QVector4D(0, 0, 0, 1);
 	_pickPos = QVector3D(hcPos.x(), hcPos.y(), hcPos.z());
 
 	if (take)
@@ -897,34 +807,37 @@ void SceneView::_mousePick(QVector2D ScreenPos)
 		int closestIdx = -1;
 		float closestD = 10000.0f;
 
-		for (int i = 0; i < take->markers[timelineFrame].size(); ++i)
+		if (timelineFrame >= take->timeStart && timelineFrame <= take->timeEnd)
 		{
-			float d = take->markers[timelineFrame][i].pos.distanceToLine(_pickPos, _pickDir);
-
-			if (d < 0.05f && d < closestD)
+			for (int i = 0; i < take->markers[timelineFrame].size(); ++i)
 			{
-				closestD = d;
-				closestIdx = i;
-			}
-		}
+				float d = take->markers[timelineFrame][i].pos.distanceToLine(_pickPos, _pickDir);
 
-		_selectedIdx = closestIdx;
-
-		if (_selectedIdx != -1)
-		{
-			float scaledDistance = ((_lastSelectedPos[0] - take->markers[timelineFrame][_selectedIdx].pos).length()) * take->wScale;
-			qDebug() << "Distance" << scaledDistance;
-
-			for (int i = 1; i >= 0; --i)
-			{
-				_lastSelectedPos[i + 1] = _lastSelectedPos[i];
+				if (d < 0.05f && d < closestD)
+				{
+					closestD = d;
+					closestIdx = i;
+				}
 			}
 
-			_lastSelectedPos[0] = take->markers[timelineFrame][_selectedIdx].pos;
-		}
+			_selectedIdx = closestIdx;
 
-		qDebug() << "0" << _lastSelectedPos[0];
-		qDebug() << "1" << _lastSelectedPos[1];
-		qDebug() << "2" << _lastSelectedPos[2];
+			if (_selectedIdx != -1)
+			{
+				float scaledDistance = ((_lastSelectedPos[0] - take->markers[timelineFrame][_selectedIdx].pos).length());
+				qDebug() << "Distance" << scaledDistance;
+
+				for (int i = 1; i >= 0; --i)
+				{
+					_lastSelectedPos[i + 1] = _lastSelectedPos[i];
+				}
+
+				_lastSelectedPos[0] = take->markers[timelineFrame][_selectedIdx].pos;
+			}
+
+			qDebug() << "0" << _lastSelectedPos[0];
+			qDebug() << "1" << _lastSelectedPos[1];
+			qDebug() << "2" << _lastSelectedPos[2];
+		}
 	}
 }

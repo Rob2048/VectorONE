@@ -239,7 +239,7 @@ QTabBar::tab:selected
     </property>
     <layout class="QVBoxLayout" name="verticalLayout">
      <property name="spacing">
-      <number>6</number>
+      <number>0</number>
      </property>
      <property name="leftMargin">
       <number>0</number>
@@ -278,6 +278,9 @@ padding: 5px;</string>
      </item>
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_11">
+       <property name="spacing">
+        <number>6</number>
+       </property>
        <property name="leftMargin">
         <number>6</number>
        </property>
@@ -287,10 +290,13 @@ padding: 5px;</string>
        <property name="rightMargin">
         <number>6</number>
        </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
        <item>
-        <widget class="QPushButton" name="btnResetFrameIds">
+        <widget class="QPushButton" name="btnShowLive">
          <property name="text">
-          <string>Reset Frame IDs</string>
+          <string>Show Live</string>
          </property>
         </widget>
        </item>
@@ -343,7 +349,7 @@ padding: 5px;</string>
 padding: 5px;</string>
        </property>
        <property name="text">
-        <string>Tracker Properties</string>
+        <string>Selected Tracker</string>
        </property>
       </widget>
      </item>
@@ -356,6 +362,9 @@ padding: 5px;</string>
         <number>6</number>
        </property>
        <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
         <number>6</number>
        </property>
        <item row="1" column="0">
@@ -400,181 +409,20 @@ padding: 5px;</string>
          </property>
         </widget>
        </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="label_3">
-         <property name="text">
-          <string>Threshold</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="1">
-        <widget class="QSlider" name="horizontalSlider_2">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="0">
-        <widget class="QLabel" name="label_4">
-         <property name="text">
-          <string>Sensitivity</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="1">
-        <widget class="QSlider" name="horizontalSlider_3">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="0">
-        <widget class="QLabel" name="label_10">
-         <property name="text">
-          <string>Frame Skip</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="1">
-        <widget class="QLineEdit" name="txtFrameSkip">
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="0">
-        <widget class="QLabel" name="label_8">
-         <property name="text">
-          <string>Draw Guides</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1">
-        <widget class="QCheckBox" name="chkDrawGuides">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="0">
-        <widget class="QLabel" name="label_9">
-         <property name="text">
-          <string>Markers</string>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="1">
-        <widget class="QCheckBox" name="chkMarkers">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="label_11">
-         <property name="text">
-          <string>Undistort</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1">
-        <widget class="QCheckBox" name="chkFindCalib">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
       </layout>
      </item>
      <item>
-      <widget class="QLabel" name="label_5">
-       <property name="minimumSize">
+      <spacer name="verticalSpacer_4">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
         <size>
-         <width>0</width>
-         <height>32</height>
+         <width>20</width>
+         <height>40</height>
         </size>
        </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>32</height>
-        </size>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">background-color: rgb(32, 34, 39);
-padding: 5px;</string>
-       </property>
-       <property name="text">
-        <string>Calibration</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QVBoxLayout" name="verticalLayout_4">
-       <property name="leftMargin">
-        <number>6</number>
-       </property>
-       <property name="rightMargin">
-        <number>6</number>
-       </property>
-       <property name="bottomMargin">
-        <number>6</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="lblCalibImageCount">
-         <property name="text">
-          <string>Image Count: 0</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="lblCalibError">
-         <property name="text">
-          <string>Error: 0</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnStartCalibration">
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string>Start Calibration</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnStopCalibration">
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string>Stop Calibration</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnGenerateMask">
-         <property name="text">
-          <string>Generate Mask</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="verticalSpacer_3">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
+      </spacer>
      </item>
     </layout>
    </widget>
@@ -1011,13 +859,53 @@ padding: 5px;</string>
            </widget>
           </item>
           <item>
+           <widget class="QToolButton" name="btnSetHorizontal">
+            <property name="text">
+             <string>M</string>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-width.png</normaloff>icons8-width.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="btnSetVertical">
+            <property name="text">
+             <string>M</string>
+            </property>
+            <property name="icon">
+             <iconset>
+              <normaloff>icons8-height.png</normaloff>icons8-height.png</iconset>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>30</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <spacer name="horizontalSpacer">
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
-              <width>40</width>
+              <width>0</width>
               <height>20</height>
              </size>
             </property>
@@ -1070,6 +958,9 @@ padding: 5px;</string>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout_5">
+     <property name="spacing">
+      <number>0</number>
+     </property>
      <property name="leftMargin">
       <number>0</number>
      </property>
@@ -1082,59 +973,6 @@ padding: 5px;</string>
      <property name="bottomMargin">
       <number>0</number>
      </property>
-     <item>
-      <widget class="QLabel" name="label_18">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>32</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>32</height>
-        </size>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">background-color: rgb(32, 34, 39);
-padding: 5px;</string>
-       </property>
-       <property name="text">
-        <string>Take</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_3">
-       <property name="leftMargin">
-        <number>6</number>
-       </property>
-       <property name="topMargin">
-        <number>6</number>
-       </property>
-       <property name="rightMargin">
-        <number>6</number>
-       </property>
-       <property name="bottomMargin">
-        <number>6</number>
-       </property>
-       <item>
-        <widget class="QPushButton" name="btnLoadTake">
-         <property name="text">
-          <string>Load</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="btnSaveTake">
-         <property name="text">
-          <string>Save</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
      <item>
       <widget class="QLabel" name="label_14">
        <property name="minimumSize">
@@ -1190,6 +1028,13 @@ padding: 5px;</string>
         <widget class="QPushButton" name="btnAssignWorldBasis">
          <property name="text">
           <string>Assign World Basis</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnPushToLive">
+         <property name="text">
+          <string>Push to Live</string>
          </property>
         </widget>
        </item>
@@ -1249,17 +1094,112 @@ padding: 5px;</string>
       </layout>
      </item>
      <item>
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
+      <widget class="QLabel" name="label_18">
+       <property name="minimumSize">
         <size>
-         <width>20</width>
-         <height>40</height>
+         <width>0</width>
+         <height>32</height>
         </size>
        </property>
-      </spacer>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(32, 34, 39);
+padding: 5px;</string>
+       </property>
+       <property name="text">
+        <string>Take</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="toolbar_3">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QToolButton" name="btnLoadTake">
+         <property name="text">
+          <string>M</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-open.png</normaloff>icons8-open.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="btnSaveTake">
+         <property name="text">
+          <string>F</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-save.png</normaloff>icons8-save.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_3">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout_9">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="leftMargin">
+        <number>6</number>
+       </property>
+       <property name="topMargin">
+        <number>6</number>
+       </property>
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QListView" name="lstTakes"/>
+       </item>
+      </layout>
      </item>
     </layout>
    </widget>
@@ -1293,6 +1233,26 @@ padding: 5px;</string>
        <property name="spacing">
         <number>0</number>
        </property>
+       <item>
+        <widget class="QToolButton" name="btnShowLiveToolbar">
+         <property name="text">
+          <string>M</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-wall-mount-camera.png</normaloff>icons8-wall-mount-camera.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QToolButton" name="btnToggleMarkerSources">
          <property name="text">
@@ -1370,6 +1330,130 @@ padding: 5px;</string>
         </spacer>
        </item>
       </layout>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dockExtra">
+   <property name="windowTitle">
+    <string>Extra Tools</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>4</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_6">
+    <layout class="QVBoxLayout" name="verticalLayout_8">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QLabel" name="label_5">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: rgb(32, 34, 39);
+padding: 5px;</string>
+       </property>
+       <property name="text">
+        <string>Calibration</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout_4">
+       <property name="leftMargin">
+        <number>6</number>
+       </property>
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="lblCalibImageCount">
+         <property name="text">
+          <string>Image Count: 0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblCalibError">
+         <property name="text">
+          <string>Error: 0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnStartCalibration">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>Start Calibration</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnStopCalibration">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>Stop Calibration</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnGenerateMask">
+         <property name="text">
+          <string>Generate Mask</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnResetFrameIds">
+         <property name="text">
+          <string>Reset Frame IDs</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <spacer name="verticalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
      </item>
     </layout>
    </widget>

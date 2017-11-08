@@ -26,7 +26,6 @@ public:
 	// Take view.
 	Take*		take;
 	int			timelineFrame;
-	std::map<int, LiveTracker*>* trackers;
 	
 	// Global view controls.
 	QVector2D	viewTranslate;
@@ -41,6 +40,7 @@ public:
 	bool		showDistortedMarkers;
 	bool		showUndistortedMarkers;
 	bool		showReprojectedMarkers;
+	bool		alignHorizontal;
 
 	void setMask(bool Visible);
 	void setMarkerMode(int Mode);
@@ -59,6 +59,7 @@ private:
 	QFont _mainFont;
 	QFont _detailFont;
 	QFont _largeFont;
+	QFont _medFont;
 
 	bool		_mouseLeft;
 	bool		_mouseRight;

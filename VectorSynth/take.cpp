@@ -6,15 +6,14 @@
 #include <QFile>
 #include <QElapsedTimer>
 #include <QProcess>
-#include "sceneView.h"
 
-Take::Take() :
-	wScale(1.0f),
-	wX(1, 0, 0),
-	wY(0, 1, 0),
-	wZ(0, 0, 1)
+Take::Take()
 {
-
+	timeFrames = 0;
+	timeStart = 0;
+	timeEnd = 0;
+	isLive = false;
+	frameDuration = 0;
 }
 
 Take::~Take()
@@ -27,10 +26,12 @@ void Take::Destroy()
 	for (int i = 0; i < trackers.count(); ++i)
 	{
 		delete trackers[i]->decoder;
-		delete[] trackers[i]->takeClipData;
-		delete trackers[i];
+
+		if (trackers[i]->takeClipData)
+			delete[] trackers[i]->takeClipData;
 	}
 
+	qDeleteAll(trackers);
 	trackers.clear();
 }
 
@@ -70,16 +71,6 @@ void Take::LoadTake(QString Name)
 
 		QJsonObject takeObj = QJsonDocument::fromJson(fileData).object();
 		frameDuration = takeObj["fps"].toInt();
-		wScale = takeObj["world"].toObject()["s"].toDouble();
-		QJsonArray jsonWorldX = takeObj["world"].toObject()["x"].toArray();
-		QJsonArray jsonWorldY = takeObj["world"].toObject()["y"].toArray();
-		QJsonArray jsonWorldZ = takeObj["world"].toObject()["z"].toArray();
-		QJsonArray jsonWorldT = takeObj["world"].toObject()["t"].toArray();
-
-		wX = QVector3D(jsonWorldX[0].toDouble(), jsonWorldX[1].toDouble(), jsonWorldX[2].toDouble());
-		wY = QVector3D(jsonWorldY[0].toDouble(), jsonWorldY[1].toDouble(), jsonWorldY[2].toDouble());
-		wZ = QVector3D(jsonWorldZ[0].toDouble(), jsonWorldZ[1].toDouble(), jsonWorldZ[2].toDouble());
-		wT = QVector3D(jsonWorldT[0].toDouble(), jsonWorldT[1].toDouble(), jsonWorldT[2].toDouble());
 	}
 
 	_AdjustRuntime();
@@ -88,37 +79,6 @@ void Take::LoadTake(QString Name)
 	{
 		refMarkers.push_back(QVector3D());
 	}
-
-	/*
-	QFile refMarkerFile("project/take/refinedPoints.txt");
-
-	if (refMarkerFile.open(QIODevice::ReadOnly | QIODevice::Text))
-	{
-		for (int i = 0; i < timeFrames; ++i)
-		{
-			refMarkers.push_back(QVector3D());
-		}
-
-		while (true)
-		{
-			QString line(refMarkerFile.readLine());
-
-			if (line.length() == 0)
-				break;
-
-			QStringList params = line.split(' ');
-			int index = params[0].toInt();
-			float x = params[1].toDouble();
-			float y = params[2].toDouble();
-			float z = params[3].toDouble();
-
-			qDebug() << "Ref Marker" << index << x << y << z;
-			refMarkers[index] = QVector3D(x, y, z);
-		}
-
-		refMarkerFile.close();
-	}
-	*/
 }
 
 void Take::Save()
@@ -129,37 +89,7 @@ void Take::Save()
 	}
 
 	QJsonObject jsonObj;
-	jsonObj["name"] = "Default Name";
 	jsonObj["fps"] = frameDuration;
-
-	QJsonArray jsonWorldX;
-	jsonWorldX.append(wX.x());
-	jsonWorldX.append(wX.y());
-	jsonWorldX.append(wX.z());
-
-	QJsonArray jsonWorldY;
-	jsonWorldY.append(wY.x());
-	jsonWorldY.append(wY.y());
-	jsonWorldY.append(wY.z());
-
-	QJsonArray jsonWorldZ;
-	jsonWorldZ.append(wZ.x());
-	jsonWorldZ.append(wZ.y());
-	jsonWorldZ.append(wZ.z());
-
-	QJsonArray jsonWorldTranslate;
-	jsonWorldTranslate.append(wT.x());
-	jsonWorldTranslate.append(wT.y());
-	jsonWorldTranslate.append(wT.z());
-
-	QJsonObject jsonWorld;
-	jsonWorld["x"] = jsonWorldX;
-	jsonWorld["y"] = jsonWorldY;
-	jsonWorld["z"] = jsonWorldZ;
-	jsonWorld["t"] = jsonWorldTranslate;
-	jsonWorld["s"] = wScale;
-
-	jsonObj["world"] = jsonWorld;
 
 	QJsonDocument jsonDoc(jsonObj);
 	QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
@@ -196,12 +126,10 @@ void Take::_AdjustRuntime()
 	qDebug() << "Timeline" << timeStart << timeEnd << timeFrames;
 
 	markers.clear();
-	calibMarkers.clear();
 
 	for (int i = 0; i <= timeEnd; ++i)
 	{
 		markers.push_back(std::vector<Marker3D>());
-		calibMarkers.push_back(QVector3D());
 	}
 }
 
@@ -249,30 +177,6 @@ void Take::Build2DMarkers(int StartFrame, int EndFrame)
 
 	qDebug() << "Done Building Markers";
 }
-
-/*
-Marker3D Take::_triangulate(Marker2D M1, Marker2D M2)
-{
-	std::vector<cv::Point2d> trackerPoints[2];
-	trackerPoints[0].push_back(cv::Point2d(M1.pos.x(), M1.pos.y()));
-	trackerPoints[1].push_back(cv::Point2d(M2.pos.x(), M2.pos.y()));
-
-	cv::Mat Q;
-	triangulatePoints(trackers[M1.trackerId]->projMat, trackers[M2.trackerId]->projMat, trackerPoints[0], trackerPoints[1], Q);
-
-	float w = Q.at<double>(3, 0);
-	float x = Q.at<double>(0, 0) / w;
-	float y = Q.at<double>(1, 0) / w;
-	float z = Q.at<double>(2, 0) / w;
-
-	Marker3D m = {};
-	m.pos = QVector3D(x, y, z);
-	m.sources.push_back(M1);
-	m.sources.push_back(M2);
-
-	return m;
-}
-*/
 
 // Returns the squared distance between point c and segment ab
 float SqDistPointSegment(QVector2D A, QVector2D B, QVector2D C)
@@ -341,9 +245,7 @@ void Take::_ClosestPointsLines(QVector3D P1, QVector3D D1, QVector3D P2, QVector
 }
 
 void Take::Build3DMarkers(int StartFrame, int EndFrame)
-{
-	qDebug() << "Start Building 3D Markers";
-
+{	
 	// TODO: Don't globally clear so frames can retain through different processing ranges.
 	markers.clear();
 
@@ -352,6 +254,9 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 		markers.push_back(std::vector<Marker3D>());
 	}
 
+	QElapsedTimer t;
+	t.start();
+	
 	for (int i = 0; i < trackers.count(); ++i)
 	{
 		trackers[i]->BuildRays(StartFrame, EndFrame);
@@ -359,7 +264,7 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 
 	float pixelTolerance = 3.0f;
 	float pixelToleranceSqr = pixelTolerance * pixelTolerance;
-	float markerGroupingTolerance = 0.02f; // TODO: Scale by world scale.
+	float markerGroupingTolerance = 0.02f;
 	float markerGropuingToleranceSqr = markerGroupingTolerance * markerGroupingTolerance;
 
 	// Build markers from contributing cameras;
@@ -397,6 +302,7 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 				QVector3D c2;
 				_ClosestPointsLines(trackers[a->trackerId]->worldPos, a->worldRayD, trackers[b->trackerId]->worldPos, b->worldRayD, &c1, &c2);
 
+				/*
 				// Check that both closest line points are within threshold in pixels.
 				// Project c2 onto tracker A
 				QVector2D projB = trackers[a->trackerId]->ProjectPoint(c2);
@@ -407,6 +313,14 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 				float distA = (b->pos - projA).lengthSquared();
 
 				if (distA <= pixelToleranceSqr && distB <= pixelToleranceSqr)
+				*/
+
+				// Check tolerance in world space
+				float distSqr = (c1 - c2).lengthSquared();
+				const float rayTol = 0.005f;
+				const float rayTolSqr = rayTol * rayTol;
+				
+				if (distSqr <= rayTolSqr)
 				{
 					QVector3D mPos = (c1 + c2) / 2;
 
@@ -475,7 +389,6 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 			}
 		}
 
-		//*
 		// Distribute groups into 3D markers.
 		for (int iG = 0; iG < markerGroups.size(); ++iG)
 		{
@@ -484,17 +397,10 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 			m.sources = markerGroups[iG].sources;
 			markers[i].push_back(m);
 		}
-		//*/
 	}
 
-	/*
-	for (int i = 0; i < markers.size(); ++i)
-	{
-		qDebug() << "3D Marker" << i << markers[i].size();
-	}
-	*/
-
-	qDebug() << "Done Building Markers";
+	float t1 = (t.nsecsElapsed() / 1000) / 1000.0;
+	qDebug() << "Build 3D markers:" << t1 << "ms";
 }
 
 void Take::SaveSSBAFile()
@@ -599,14 +505,6 @@ void Take::BuildExtrinsics(int StartFrame, int EndFrame)
 		_BuildPose(StartFrame, EndFrame, trackers[0], trackers[i], markers, pose);
 		markerSets.push_back(markers);
 		poses.push_back(pose);
-
-		/*
-		for (int m = 0; m < markers.size(); ++m)
-		{
-			//Scene->pushSamplePoint(QVector3D(x, y, z), QVector3D(1, 0, 1));
-			calibMarkers[markers[m].frame] = markers[m].pos;
-		}
-		*/
 	}
 
 	// Scale/match pair poses to first pair.
@@ -767,7 +665,7 @@ void Take::BundleAdjust(int StartFrame, int EndFrame)
 	{
 		QTextStream stream(&file);
 
-		int markerCount3d = temp3DMarkers.size();
+		int markerCount3d = (int)temp3DMarkers.size();
 		int markerCount2d = 0;
 
 		// Count 2D markers.
@@ -1090,4 +988,14 @@ void Take::_BuildPose(int StartFrame, int EndFrame, TakeTracker* Root, TakeTrack
 		m.frame = pointFrameIndex[i];
 		Markers.push_back(m);
 	}
+}
+
+LiveTake::LiveTake()
+{
+	isLive = true;
+}
+
+LoadedTake::LoadedTake()
+{
+	isLive = false;
 }

@@ -4,26 +4,18 @@
 
 using namespace cv;
 
-Decoder::Decoder() :
-	_calibBoardSize(9, 6)
+Decoder::Decoder()
 {
-	camThreshold = 0.0f;
-	camSensitivity = 0.1f;
-	camDistort = 0.54902f;
-	drawGuides = false;
-	drawMarkers = false;
 	frameSkip = 0;
 	_frameLimit = 0;
 	dataRecvBytes = 0;
 	_calibrating = false;
 	findCalibrationSheet = false;
 	drawUndistorted = false;
-	_calibUndistortEnable = false;
-	_calibSquareSize = 25;
-	_calibFramesSince = 0;
 	newFrames = 0;
 	destWidth = VID_W * 1;
 	destHeight = VID_H * 1;
+	_parsedFrames = 0;
 
 	for (int i = 0; i < sizeof(frameMaskData); ++i)
 		frameMaskData[i] = 1;
@@ -588,24 +580,6 @@ void Decoder::TransferFrameToBuffer(uint8_t* Data)
 	memcpy(Data, colMat.data, VID_W * VID_H * 3);
 }
 
-void Decoder::_detectValibSheet()
-{
-	std::vector<Point2f> pointBuf;
-
-	if (findChessboardCorners(cvFrame, _calibBoardSize, pointBuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE))
-	{
-		cornerSubPix(cvFrame, pointBuf, Size(11, 11), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-		calibImagePoints.push_back(pointBuf);
-		++calibImageCount;
-
-		drawChessboardCorners(colMat, _calibBoardSize, Mat(pointBuf), true);
-	}
-	else
-	{
-		//std::cout << "No Board Found!\n";
-	}
-}
-
 void Decoder::_findCalibrationSheet()
 {
 	SimpleBlobDetector::Params blobDetectorParams;
@@ -652,42 +626,3 @@ void Decoder::ShowBlankFrame()
 {
 	colMat = cv::Scalar(80, 0, 0);
 }
-
-/*
-void MainWindow::OnCalibrationStopClick()
-{
-	_calibEnable = false;
-
-	vector<vector<Point3f>> objectPoints(1);
-
-	objectPoints[0].clear();
-	for (int i = 0; i < _calibBoardSize.height; ++i)
-		for (int j = 0; j < _calibBoardSize.width; ++j)
-			objectPoints[0].push_back(Point3f(float(j*_calibSquareSize), float(i*_calibSquareSize), 0));
-
-	objectPoints.resize(_calibImagePoints.size(), objectPoints[0]);
-
-	Size imageSize(VID_W, VID_H);
-
-	double rms = calibrateCamera(objectPoints, _calibImagePoints, imageSize, _calibCameraMatrix, _calibDistCoeffs, _calibRvecs, _calivTvecs, CV_CALIB_FIX_K4 | CV_CALIB_FIX_K5); // CV_CALIB_FIX_PRINCIPAL_POINT
-	//double rms = fisheye::calibrate(objectPoints, _calibImagePoints, imageSize, _calibCameraMatrix, _calibDistCoeffs, _calibRvecs, _calivTvecs,  CV_CALIB_FIX_K4 | CV_CALIB_FIX_K5); // CV_CALIB_FIX_PRINCIPAL_POINT
-	bool ok = checkRange(_calibCameraMatrix) && checkRange(_calibDistCoeffs);
-
-	qDebug() << "Re-projection error reported by calibrateCamera: " << rms << " " << ok;
-
-	//std:vector<float> perViewErrors;
-	//double reprojError = computeReprojectionErrors(objectPoints, imagePoints, rvecs, tvecs, cameraMatrix, distCoeffs, perViewErrors);
-	//cout << "Reprojection Error: " << reprojError << "\n";
-
-	double fovX, fovY, focalLength, aspectRatio;
-	Point2d principalPoint;
-
-	// 1640 × 1232: 3.674 x 2.760	
-	calibrationMatrixValues(_calibCameraMatrix, imageSize, 3.674, 2.066, fovX, fovY, focalLength, principalPoint, aspectRatio);
-
-	qDebug() << "Cam " << fovX << " " << fovY << " " << focalLength << " " << aspectRatio << " " << principalPoint.x << "," << principalPoint.y;
-	
-	ui->lblCalibImageCount->setText(QString("Images: ") + QString::number(_calibImageCount));
-	ui->lblCalibError->setText(QString("Error: ") + QString::number(rms));
-}
-*/

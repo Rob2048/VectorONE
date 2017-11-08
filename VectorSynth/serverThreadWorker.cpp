@@ -91,18 +91,18 @@ void ServerThreadWorker::OnMaskChange(int ClientId, QByteArray Data)
 
 	if (tracker)
 	{
-		memcpy(tracker->maskData, Data.data(), sizeof(tracker->maskData));
+		memcpy(tracker->props.maskData, Data.data(), sizeof(tracker->props.maskData));
 
 		char asciiMask[64 * 44];
 
 		for (int i = 0; i < 64 * 44; ++i)
 		{
-			asciiMask[i] = tracker->maskData[i] + '0';
+			asciiMask[i] = tracker->props.maskData[i] + '0';
 		}
 
 		//QByteArray mask((char*)tracker->maskData, sizeof(tracker->maskData));
 
-		QString cmd = QString("sm,") + QString::fromLatin1(asciiMask, sizeof(tracker->maskData)) + QString("\n");
+		QString cmd = QString("sm,") + QString::fromLatin1(asciiMask, sizeof(tracker->props.maskData)) + QString("\n");
 		QByteArray data(cmd.toLatin1());
 
 		tracker->socket->write(data);
@@ -111,52 +111,31 @@ void ServerThreadWorker::OnMaskChange(int ClientId, QByteArray Data)
 
 void ServerThreadWorker::OnSendData(int ClientId, QByteArray Data)
 {
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->socket->write(Data);
+	if (ClientId == -1)
+	{
+		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
+			it->second->socket->write(Data);
+	}
+	else
+	{
+		TrackerConnection* tracker = _GetTracker(ClientId);
+		if (tracker)
+		{
+			tracker->socket->write(Data);
+		}
+	}
 }
 
-void ServerThreadWorker::OnCamSensitivityChange(int Value)
+void ServerThreadWorker::OnUpdateTracker(uint32_t SerialId, QByteArray Props)
 {
 	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->camSensitivity = (float)Value / 255.0f;
-}
-
-void ServerThreadWorker::OnCamFrameSkipChanged()
-{
-	int value = ((QLineEdit*)QObject::sender())->text().toInt();
-	qDebug() << "FS Changed" << value;
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->frameSkip = value;
-}
-
-void ServerThreadWorker::OnCamThresholdChange(int Value)
-{
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->camThreshold = (float)Value / 255.0f;
-}
-
-void ServerThreadWorker::OnCamDistortChange(int Value)
-{
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->camDistort = (float)Value / 255.0f;
-}
-
-void ServerThreadWorker::OnDrawGuidesChanged(int State)
-{
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->drawGuides = (State == 2);
-}
-
-void ServerThreadWorker::OnDrawMarkersChanged(int State)
-{
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->drawMarkers = (State == 2);
-}
-
-void ServerThreadWorker::OnFindCalibChanged(int State)
-{
-	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		it->second->decoder->drawUndistorted = (State == 2);
+	{
+		TrackerConnection* t = it->second;
+		if (t->serial == SerialId)
+		{
+			t->UpdateProperties(Props);
+		}
+	}
 }
 
 void ServerThreadWorker::OnViewFeed(int ClientId, int StreamMode)
@@ -236,17 +215,15 @@ void ServerThreadWorker::OnStartRecording()
 
 void ServerThreadWorker::OnStartCalibrating(int TrackerId)
 {
-	qDebug() << "Start Calibrating";
 	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 	{
 		it->second->decoder->findCalibrationSheet = false;
 	}
 
 	TrackerConnection* tracker = _GetTracker(TrackerId);
-	qDebug() << "Star calib" << TrackerId;
+	qDebug() << "Start calibrating tracker " << TrackerId;
 	if (tracker)
 	{
-		qDebug() << "Started";
 		tracker->decoder->findCalibrationSheet = true;
 	}
 }

@@ -5,6 +5,113 @@
 #include <QJsonArray>
 #include <QFile>
 
+void TrackerProperties::Populate(QByteArray JSON)
+{
+	QJsonObject trackerObj = QJsonDocument::fromJson(JSON).object();
+
+	name = trackerObj["name"].toString();
+	exposure = trackerObj["exposure"].toInt();
+	iso = trackerObj["iso"].toInt();
+
+	QJsonArray jsonIntrinMat = trackerObj["intrinsic"].toObject()["camera"].toArray();
+	QJsonArray jsonIntrinDist = trackerObj["intrinsic"].toObject()["distortion"].toArray();
+	QJsonArray jsonExtrinProj = trackerObj["extrinsic"].toObject()["pose"].toArray();
+
+	distCoefs = cv::Mat::zeros(5, 1, CV_64F);
+	distCoefs.at<double>(0) = jsonIntrinDist[0].toDouble();
+	distCoefs.at<double>(1) = jsonIntrinDist[1].toDouble();
+	distCoefs.at<double>(2) = jsonIntrinDist[2].toDouble();
+	distCoefs.at<double>(3) = jsonIntrinDist[3].toDouble();
+	distCoefs.at<double>(4) = jsonIntrinDist[4].toDouble();
+
+	camMat = cv::Mat::eye(3, 3, CV_64F);
+	camMat.at<double>(0, 0) = jsonIntrinMat[0].toDouble();
+	camMat.at<double>(1, 0) = jsonIntrinMat[1].toDouble();
+	camMat.at<double>(2, 0) = jsonIntrinMat[2].toDouble();
+	camMat.at<double>(0, 1) = jsonIntrinMat[3].toDouble();
+	camMat.at<double>(1, 1) = jsonIntrinMat[4].toDouble();
+	camMat.at<double>(2, 1) = jsonIntrinMat[5].toDouble();
+	camMat.at<double>(0, 2) = jsonIntrinMat[6].toDouble();
+	camMat.at<double>(1, 2) = jsonIntrinMat[7].toDouble();
+	camMat.at<double>(2, 2) = jsonIntrinMat[8].toDouble();
+
+	rtMat = cv::Mat::eye(3, 4, CV_64F);
+	for (int iY = 0; iY < 4; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			rtMat.at<double>(iX, iY) = jsonExtrinProj[iY * 3 + iX].toDouble();
+		}
+	}
+
+	QString maskStr = trackerObj["mask"].toString();
+	for (int i = 0; i < maskStr.size(); ++i)
+	{
+		maskData[i] = maskStr[i].toLatin1() - 48;
+	}
+}
+
+QByteArray TrackerProperties::GetJSON(bool Pretty)
+{
+	QJsonObject jsonObj;
+	jsonObj["name"] = name;
+	
+	QString maskString;
+	for (int i = 0; i < sizeof(maskData); ++i)
+	{
+		maskString += maskData[i] + 48;
+	}
+	jsonObj["mask"] = maskString;
+
+	QJsonArray jsonIntrinMat;
+	jsonIntrinMat.append(camMat.at<double>(0, 0));
+	jsonIntrinMat.append(camMat.at<double>(1, 0));
+	jsonIntrinMat.append(camMat.at<double>(2, 0));
+	jsonIntrinMat.append(camMat.at<double>(0, 1));
+	jsonIntrinMat.append(camMat.at<double>(1, 1));
+	jsonIntrinMat.append(camMat.at<double>(2, 1));
+	jsonIntrinMat.append(camMat.at<double>(0, 2));
+	jsonIntrinMat.append(camMat.at<double>(1, 2));
+	jsonIntrinMat.append(camMat.at<double>(2, 2));
+
+	QJsonArray jsonIntrinDist;
+	jsonIntrinDist.append(distCoefs.at<double>(0));
+	jsonIntrinDist.append(distCoefs.at<double>(1));
+	jsonIntrinDist.append(distCoefs.at<double>(2));
+	jsonIntrinDist.append(distCoefs.at<double>(3));
+	jsonIntrinDist.append(distCoefs.at<double>(4));
+
+	QJsonObject jsonIntrin;
+	jsonIntrin["camera"] = jsonIntrinMat;
+	jsonIntrin["distortion"] = jsonIntrinDist;
+
+	jsonObj["intrinsic"] = jsonIntrin;
+
+	QJsonArray pose;
+	for (int iY = 0; iY < 4; ++iY)
+	{
+		for (int iX = 0; iX < 3; ++iX)
+		{
+			pose.append(rtMat.at<double>(iX, iY));
+		}
+	}
+
+	QJsonObject jsonExtrin;
+	jsonExtrin["pose"] = pose;
+
+	jsonObj["extrinsic"] = jsonExtrin;
+
+	QJsonDocument jsonDoc(jsonObj);
+	QByteArray jsonBytes;
+	
+	if (Pretty)
+		jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
+	else
+		jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Compact);
+
+	return jsonBytes;
+}
+
 TrackerConnection::TrackerConnection(int Id, QTcpSocket* Socket, QObject* Parent) :
 	QObject(Parent),
 	id(Id),
@@ -19,7 +126,7 @@ TrackerConnection::TrackerConnection(int Id, QTcpSocket* Socket, QObject* Parent
 	_recvPacketId(0),
 	_serverThreadWorker((ServerThreadWorker*)Parent)
 {
-	memset(maskData, 1, sizeof(maskData));
+	memset(props.maskData, 1, sizeof(props.maskData));
 	decoder = new Decoder();
 
 	connect(Socket, &QTcpSocket::readyRead, this, &TrackerConnection::OnTcpSocketReadyRead);
@@ -51,36 +158,17 @@ void TrackerConnection::StartRecording()
 
 	if (streamMode == 1 || streamMode == 2)
 	{
-		// TODO: Save tracker object, not mask directly.
-		/*
-		QJsonObject jsonObj;
-		jsonObj["name"] = name;
-		jsonObj["fps"] = fps;
-		jsonObj["exposure"] = exposure;
-		jsonObj["iso"] = iso;
-		jsonObj["threshold"] = threshold;
-		jsonObj["sensitivity"] = sensitivity;
-		jsonObj["offset"] = frameOffset;
-		QJsonDocument jsonDoc(jsonObj);
-		QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
+		QByteArray jsonBytes = props.GetJSON(true);
 		QFile file("project\\take\\" + QString::number(serial) + ".tracker");
 
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
 		{
-			qDebug() << "Tracker: Save file failed for recording.";
+			qDebug() << "Tracker: Save file failed";
 			return;
 		}
 
 		file.write(jsonBytes);
 		file.close();
-		*/
-
-		/*
-		sprintf(fileName, "project\\take\\%u.mask", serial);
-		FILE* maskFile = fopen(fileName, "wb");
-		fwrite(maskData, sizeof(maskData), 1, maskFile);
-		fclose(maskFile);
-		*/
 	}
 
 	if (streamMode == 1)
@@ -112,6 +200,15 @@ void TrackerConnection::RecordData(uint8_t* Data, int Len)
 {
 	fwrite(Data, Len, 1, recordFile);
 	//fflush(recordFile);
+}
+
+void TrackerConnection::UpdateProperties(QByteArray Props)
+{
+	props.Populate(Props);
+	QString cmd = "sp," + Props + "\n";
+
+	qDebug() << "Update:" << cmd;
+	socket->write(cmd.toUtf8());
 }
 
 void TrackerConnection::OnTcpSocketDisconnected()
@@ -186,25 +283,16 @@ void TrackerConnection::OnTcpSocketReadyRead()
 		}
 		else if (_recvPacketId == 4)
 		{
-			if (socket->bytesAvailable() >= 8 + sizeof(maskData))
+			if (socket->bytesAvailable() >= 12)
 			{
 				qDebug() << "Got GI";
 
-				socket->read((char*)_recvBuffer, 8 + sizeof(maskData));
-				version = _recvBuffer[3] << 24 | _recvBuffer[2] << 16 | _recvBuffer[1] << 8 | _recvBuffer[0];
-				serial = _recvBuffer[7] << 24 | _recvBuffer[6] << 16 | _recvBuffer[5] << 8 | _recvBuffer[4];
-				name = "Unnamed";
-				memcpy(maskData, _recvBuffer + 8, sizeof(maskData));
-
-				for (int i = 0; i < sizeof(maskData); ++i)
-				{
-					maskData[i] -= 48;
-				}
-
-				accepted = true;
-				_recvState = 0;
-
-				emit OnInfoUpdate(this);
+				socket->read((char*)_recvBuffer, 12);
+				version = *(int*)&_recvBuffer[0];
+				serial = *(int*)&_recvBuffer[4];
+				_recvFrameSize = *(int*)&_recvBuffer[8];
+				_recvState = 4;
+				_recvPacketId = 0;
 			}
 			else
 			{
@@ -301,6 +389,37 @@ void TrackerConnection::OnTcpSocketReadyRead()
 
 					_recvState = 0;
 				}
+			}
+			else
+			{
+				break;
+			}
+		}
+		else if (_recvState == 4)
+		{
+			if (socket->bytesAvailable() >= _recvFrameSize)
+			{
+				socket->read((char*)_recvBuffer, _recvFrameSize);
+
+				QByteArray jsonData((char*)_recvBuffer, _recvFrameSize);
+				//qDebug() << _recvFrameSize << QString::fromUtf8(jsonData);
+
+				props.Populate(jsonData);
+
+				/*
+				props.name = "Unnamed";
+				memcpy(props.maskData, _recvBuffer + 8, sizeof(props.maskData));
+
+				for (int i = 0; i < sizeof(props.maskData); ++i)
+				{
+					props.maskData[i] -= 48;
+				}
+				*/
+
+				accepted = true;
+				_recvState = 0;
+
+				emit OnInfoUpdate(this);
 			}
 			else
 			{

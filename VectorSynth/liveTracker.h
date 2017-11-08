@@ -61,7 +61,7 @@ public:
 	int			iso;
 	int			threshold;
 	int			sensitivity;
-	int			targetFps;
+	int			frameDuration;
 
 	float		frames;
 	float		data;
@@ -74,8 +74,6 @@ public:
 	bool		active;
 	bool		connected;
 	bool		loaded;
-	bool		decodeVideo;
-
 	int			interactMode;
 
 	uint8_t		frameData[VID_W * VID_H * 3];
