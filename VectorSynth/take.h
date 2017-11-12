@@ -19,8 +19,19 @@ class Marker3D
 {
 public:
 
+	enum Type
+	{
+		T_UNLABLED,
+		T_LABLED,
+		T_GHOST,
+	};
+
 	QVector3D pos;
 	QList<Marker2D> sources;
+	int id;
+	QVector3D velocity;
+	QVector3D bVelocity;
+	Type type;
 };
 
 class MarkerGroup
@@ -33,23 +44,31 @@ public:
 	QList<Marker2D> sources;
 };
 
+class MarkerLabel
+{
+public:
+
+	QString name;
+};
+
 class Take
 {
 public:
 
-	// NOTE: Holds the state of (at least) the current frame for tracker view and scene view rendering/processing.
+	QString name;
 
 	QList<TakeTracker*>				trackers;
 	std::map<int, LiveTracker*>		liveTrackers;
 	int								selectedTracker;
 	
-	int timeStart;
 	int timeEnd;
 	int timeFrames;
 	int frameDuration;
 	bool isLive;
+	bool isRecording;
 
 	std::vector<std::vector<Marker3D>> markers;
+	std::map<int, MarkerLabel> labels;
 	std::vector<QVector3D> refMarkers;
 	
 	Take();
@@ -62,6 +81,7 @@ public:
 	void SetFrame(int TimelineFrame);
 	void Build2DMarkers(int StartFrame, int EndFrame);
 	void Build3DMarkers(int StartFrame, int EndFrame);
+	void BuildLabels(int StartFrame, int EndFrame);
 	void BuildExtrinsics(int StartFrame, int EndFrame);
 	void BundleAdjust(int StartFrame, int EndFrame);
 	void SaveSSBAFile();

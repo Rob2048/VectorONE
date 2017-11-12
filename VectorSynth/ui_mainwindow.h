@@ -20,7 +20,7 @@
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
-#include <QtWidgets/QListView>
+#include <QtWidgets/QListWidget>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpacerItem>
@@ -97,19 +97,22 @@ public:
     QVBoxLayout *verticalLayout_7;
     QPushButton *btnBuildFundamental;
     QPushButton *btnBundleAdjust;
+    QPushButton *btnSelectWorldBasis;
     QPushButton *btnAssignWorldBasis;
     QPushButton *btnPushToLive;
     QLabel *label_15;
     QVBoxLayout *verticalLayout_12;
     QPushButton *btnBuild3D;
-    QPushButton *btnIdentify3D;
+    QPushButton *btnAutoLabel;
     QLabel *label_18;
     QHBoxLayout *toolbar_3;
     QToolButton *btnLoadTake;
     QToolButton *btnSaveTake;
+    QToolButton *btnRenameTake;
+    QToolButton *btnDeleteTake;
     QSpacerItem *horizontalSpacer_3;
     QVBoxLayout *verticalLayout_9;
-    QListView *lstTakes;
+    QListWidget *lstTakes;
     QDockWidget *dockSceneView;
     QWidget *sceneViewDockContents;
     QVBoxLayout *verticalLayout_6;
@@ -746,8 +749,23 @@ public:
 
         btnBundleAdjust = new QPushButton(dockWidgetContents);
         btnBundleAdjust->setObjectName(QStringLiteral("btnBundleAdjust"));
+        QIcon icon14;
+        icon14.addFile(QStringLiteral("icons8-sun.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnBundleAdjust->setIcon(icon14);
+        btnBundleAdjust->setIconSize(QSize(13, 13));
 
         verticalLayout_7->addWidget(btnBundleAdjust);
+
+        btnSelectWorldBasis = new QPushButton(dockWidgetContents);
+        btnSelectWorldBasis->setObjectName(QStringLiteral("btnSelectWorldBasis"));
+        QIcon icon15;
+        icon15.addFile(QStringLiteral("icons8-coordinate-system.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnSelectWorldBasis->setIcon(icon15);
+        btnSelectWorldBasis->setIconSize(QSize(13, 13));
+        btnSelectWorldBasis->setCheckable(false);
+        btnSelectWorldBasis->setChecked(false);
+
+        verticalLayout_7->addWidget(btnSelectWorldBasis);
 
         btnAssignWorldBasis = new QPushButton(dockWidgetContents);
         btnAssignWorldBasis->setObjectName(QStringLiteral("btnAssignWorldBasis"));
@@ -780,10 +798,10 @@ public:
 
         verticalLayout_12->addWidget(btnBuild3D);
 
-        btnIdentify3D = new QPushButton(dockWidgetContents);
-        btnIdentify3D->setObjectName(QStringLiteral("btnIdentify3D"));
+        btnAutoLabel = new QPushButton(dockWidgetContents);
+        btnAutoLabel->setObjectName(QStringLiteral("btnAutoLabel"));
 
-        verticalLayout_12->addWidget(btnIdentify3D);
+        verticalLayout_12->addWidget(btnAutoLabel);
 
 
         verticalLayout_5->addLayout(verticalLayout_12);
@@ -802,9 +820,9 @@ public:
         toolbar_3->setObjectName(QStringLiteral("toolbar_3"));
         btnLoadTake = new QToolButton(dockWidgetContents);
         btnLoadTake->setObjectName(QStringLiteral("btnLoadTake"));
-        QIcon icon14;
-        icon14.addFile(QStringLiteral("icons8-open.png"), QSize(), QIcon::Normal, QIcon::Off);
-        btnLoadTake->setIcon(icon14);
+        QIcon icon16;
+        icon16.addFile(QStringLiteral("icons8-open.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnLoadTake->setIcon(icon16);
         btnLoadTake->setIconSize(QSize(30, 30));
         btnLoadTake->setCheckable(false);
 
@@ -812,14 +830,36 @@ public:
 
         btnSaveTake = new QToolButton(dockWidgetContents);
         btnSaveTake->setObjectName(QStringLiteral("btnSaveTake"));
-        QIcon icon15;
-        icon15.addFile(QStringLiteral("icons8-save.png"), QSize(), QIcon::Normal, QIcon::Off);
-        btnSaveTake->setIcon(icon15);
+        QIcon icon17;
+        icon17.addFile(QStringLiteral("icons8-save.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnSaveTake->setIcon(icon17);
         btnSaveTake->setIconSize(QSize(30, 30));
         btnSaveTake->setCheckable(false);
         btnSaveTake->setChecked(false);
 
         toolbar_3->addWidget(btnSaveTake);
+
+        btnRenameTake = new QToolButton(dockWidgetContents);
+        btnRenameTake->setObjectName(QStringLiteral("btnRenameTake"));
+        QIcon icon18;
+        icon18.addFile(QStringLiteral("icons8-rename.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnRenameTake->setIcon(icon18);
+        btnRenameTake->setIconSize(QSize(30, 30));
+        btnRenameTake->setCheckable(false);
+        btnRenameTake->setChecked(false);
+
+        toolbar_3->addWidget(btnRenameTake);
+
+        btnDeleteTake = new QToolButton(dockWidgetContents);
+        btnDeleteTake->setObjectName(QStringLiteral("btnDeleteTake"));
+        QIcon icon19;
+        icon19.addFile(QStringLiteral("icons8-waste.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnDeleteTake->setIcon(icon19);
+        btnDeleteTake->setIconSize(QSize(30, 30));
+        btnDeleteTake->setCheckable(false);
+        btnDeleteTake->setChecked(false);
+
+        toolbar_3->addWidget(btnDeleteTake);
 
         horizontalSpacer_3 = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
@@ -829,11 +869,12 @@ public:
         verticalLayout_5->addLayout(toolbar_3);
 
         verticalLayout_9 = new QVBoxLayout();
-        verticalLayout_9->setSpacing(6);
+        verticalLayout_9->setSpacing(0);
         verticalLayout_9->setObjectName(QStringLiteral("verticalLayout_9"));
-        verticalLayout_9->setContentsMargins(6, 6, 6, 6);
-        lstTakes = new QListView(dockWidgetContents);
+        verticalLayout_9->setContentsMargins(0, 0, 0, 0);
+        lstTakes = new QListWidget(dockWidgetContents);
         lstTakes->setObjectName(QStringLiteral("lstTakes"));
+        lstTakes->setFrameShape(QFrame::NoFrame);
 
         verticalLayout_9->addWidget(lstTakes);
 
@@ -856,9 +897,9 @@ public:
         toolbar_2->setObjectName(QStringLiteral("toolbar_2"));
         btnShowLiveToolbar = new QToolButton(sceneViewDockContents);
         btnShowLiveToolbar->setObjectName(QStringLiteral("btnShowLiveToolbar"));
-        QIcon icon16;
-        icon16.addFile(QStringLiteral("icons8-wall-mount-camera.png"), QSize(), QIcon::Normal, QIcon::Off);
-        btnShowLiveToolbar->setIcon(icon16);
+        QIcon icon20;
+        icon20.addFile(QStringLiteral("icons8-wall-mount-camera.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnShowLiveToolbar->setIcon(icon20);
         btnShowLiveToolbar->setIconSize(QSize(30, 30));
         btnShowLiveToolbar->setCheckable(false);
 
@@ -866,9 +907,7 @@ public:
 
         btnToggleMarkerSources = new QToolButton(sceneViewDockContents);
         btnToggleMarkerSources->setObjectName(QStringLiteral("btnToggleMarkerSources"));
-        QIcon icon17;
-        icon17.addFile(QStringLiteral("icons8-sun.png"), QSize(), QIcon::Normal, QIcon::Off);
-        btnToggleMarkerSources->setIcon(icon17);
+        btnToggleMarkerSources->setIcon(icon14);
         btnToggleMarkerSources->setIconSize(QSize(30, 30));
         btnToggleMarkerSources->setCheckable(true);
         btnToggleMarkerSources->setChecked(false);
@@ -885,9 +924,9 @@ public:
 
         btnToggleExpandedMarkers = new QToolButton(sceneViewDockContents);
         btnToggleExpandedMarkers->setObjectName(QStringLiteral("btnToggleExpandedMarkers"));
-        QIcon icon18;
-        icon18.addFile(QStringLiteral("icons8-expand.png"), QSize(), QIcon::Normal, QIcon::Off);
-        btnToggleExpandedMarkers->setIcon(icon18);
+        QIcon icon21;
+        icon21.addFile(QStringLiteral("icons8-expand.png"), QSize(), QIcon::Normal, QIcon::Off);
+        btnToggleExpandedMarkers->setIcon(icon21);
         btnToggleExpandedMarkers->setIconSize(QSize(30, 30));
         btnToggleExpandedMarkers->setCheckable(true);
 
@@ -1010,15 +1049,21 @@ public:
         label_14->setText(QApplication::translate("MainWindow", "Calibration", Q_NULLPTR));
         btnBuildFundamental->setText(QApplication::translate("MainWindow", "Find Extrinsic Parameters", Q_NULLPTR));
         btnBundleAdjust->setText(QApplication::translate("MainWindow", "Bundle Adjust", Q_NULLPTR));
+        btnSelectWorldBasis->setText(QApplication::translate("MainWindow", "Select World Basis", Q_NULLPTR));
         btnAssignWorldBasis->setText(QApplication::translate("MainWindow", "Assign World Basis", Q_NULLPTR));
         btnPushToLive->setText(QApplication::translate("MainWindow", "Push to Live", Q_NULLPTR));
         label_15->setText(QApplication::translate("MainWindow", "Tools", Q_NULLPTR));
         btnBuild3D->setText(QApplication::translate("MainWindow", "Build 3D Markers", Q_NULLPTR));
-        btnIdentify3D->setText(QApplication::translate("MainWindow", "Label Markers", Q_NULLPTR));
+        btnAutoLabel->setText(QApplication::translate("MainWindow", "Auto Label Markers", Q_NULLPTR));
         label_18->setText(QApplication::translate("MainWindow", "Take", Q_NULLPTR));
         btnLoadTake->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
         btnSaveTake->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
+        btnRenameTake->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
+        btnDeleteTake->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
         dockSceneView->setWindowTitle(QApplication::translate("MainWindow", "Scene View", Q_NULLPTR));
+#ifndef QT_NO_TOOLTIP
+        btnShowLiveToolbar->setToolTip(QApplication::translate("MainWindow", "Show live view", Q_NULLPTR));
+#endif // QT_NO_TOOLTIP
         btnShowLiveToolbar->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));
         btnToggleMarkerSources->setText(QApplication::translate("MainWindow", "F", Q_NULLPTR));
         btnToggleRays->setText(QApplication::translate("MainWindow", "M", Q_NULLPTR));

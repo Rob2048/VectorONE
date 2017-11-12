@@ -4,6 +4,7 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLBuffer>
+#include <QOpenGLTexture>
 
 #include <QMatrix4x4>
 #include <QQuaternion>
@@ -37,14 +38,31 @@ public:
 	void createFromOBJ(QString Filename);
 };
 
+struct FontGlyph
+{
+	QRect bounds;
+	float advance;
+	float uvX1;
+	float uvY1;
+	float uvX2;
+	float uvY2;
+};
+
+struct FontVertex
+{
+	QVector3D pos;
+	QVector2D uv;
+	QVector4D col;
+};
+
 class SceneView : public QOpenGLWidget, protected QOpenGLFunctions
 {
 public:
 
 	Take*		take;
 	int			timelineFrame;
+	bool		selectWorldBasis;
 	QVector3D	_lastSelectedPos[3];
-
 	bool		showMarkerSources;
 	bool		showRays;
 	bool		showExpandedMarkers;
@@ -52,10 +70,7 @@ public:
 	SceneView(QWidget *Parent = 0);
 	
 	void tick();
-	void setPattern(float XFreq, float XMin, float XMax, float YFreq, float YMin, float YMax, float Speed);
-	void restartPattern();
-	void pushSamplePoint(QVector3D Pos, QVector3D Color);
-
+	
 	QVector3D backColor;
 
 	void gizmoClear();
@@ -73,7 +88,21 @@ protected:
 
 private:
 
-	QFont					_mainFont;
+	enum TextAlignment
+	{
+		SVTA_LEFT,
+		SVTA_MIDDLE,
+		SVTA_RIGHT,
+	};
+
+	QImage*					_fontSheet;
+	FontGlyph				_fontGlyphs[256];
+	QOpenGLTexture*			_fontTexture;
+	QOpenGLShaderProgram	_fontShader;
+	int						_fontSpriteMax;
+	int						_fontSpriteCount;
+	QOpenGLBuffer			_fontVertBuf;
+	FontVertex*				_fontVerts;
 
 	bool					_initialized;
 
@@ -86,27 +115,14 @@ private:
 	QOpenGLBuffer			_gizmoBuffer;
 	VertexData				*_gizmoData;
 
+	/*
 	QOpenGLBuffer			_arrayBuf;
 	QOpenGLBuffer			_indexBuf;
 	int						_indexCount;
+	*/
 
 	QOpenGLBuffer			_gridArrayBuffer;
 	int						_gridPrimCount;
-
-	QOpenGLBuffer			_scanPatternBuffer;
-	int						_scanPatternVertCount;
-	int						_scanCurrentMaxPoints;
-	VertexData				*_scanData;
-	int						_scanIndex;
-	float					_scanXAccum;
-	float					_scanYAccum;
-	float					_scanXFreq;
-	float					_scanYFreq;
-	float					_scanXMin;
-	float					_scanXMax;
-	float					_scanYMin;
-	float					_scanYMax;
-	float					_scanSpeed;
 
 	QMatrix4x4				_projMat;
 
@@ -129,7 +145,10 @@ private:
 	QVector3D				_pickPos;
 	QVector3D				_pickDir;
 
-	int						_selectedIdx;	
+	int						_selectedIdx;
 
 	void _mousePick(QVector2D ScreenPos);
+	void _drawText(int X, int Y, QString Text, QVector4D Color, float Scale, TextAlignment Alignment);
+
+	bool _projectToScreen(QVector3D Pos, QVector2D& ScreenPoint);
 };

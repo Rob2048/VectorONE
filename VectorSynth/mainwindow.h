@@ -35,7 +35,8 @@ signals:
 	void OnMaskChange(int ClientId, QByteArray Data);
 	void OnStartLiveFeed(int ClientId);
 	void OnResetFrameIds();
-	void OnStartRecording();
+	void OnStartRecording(QString TakeName);
+	void OnStopRecording();
 	void OnStartCalibrating(int TrackerId);
 	void OnStopCalibrating();
 	void OnStartViewSteam(int TrackedId, int StreamMode);
@@ -75,8 +76,10 @@ public slots:
 	void OnTimelineChange(int Value);
 
 	void OnBuild3DMarkersClicked();
+	void OnAutoLabelClicked();
 	void OnBuildFundamentalMatClicked();
 	void OnBundleAdjustClicked();
+	void OnSelectWorldBasisClicked();
 	void OnAssignWorldBasisClicked();
 	void OnPushToLiveClicked();
 
@@ -125,6 +128,8 @@ private:
 	QTimer*				_playTimer;
 	float				_playFrame;
 
+	bool				_recording;
+
 	void _LoadTakeTracker(int Id);
 	void _AdvanceTakeFrame(int Camera, int Frames);
 
@@ -134,4 +139,5 @@ public:
 	void selectTracker(LiveTracker* Tracker);
 	//LiveTracker* GetTracker(int TrackerId);
 	void changeMask(LiveTracker* Tracker);
+	void updateTakeList();
 };

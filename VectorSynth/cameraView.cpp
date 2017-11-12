@@ -41,7 +41,7 @@ CameraView::CameraView(QWidget* Parent, MainWindow* Main) :
 	showDistortedMarkers = false;
 	showUndistortedMarkers = true;
 	showReprojectedMarkers = true;
-	alignHorizontal = true;
+	alignHorizontal = false;
 }
 
 QPointF CameraView::_GetVPointF(float X, float Y)

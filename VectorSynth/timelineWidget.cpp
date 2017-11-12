@@ -153,7 +153,7 @@ void TimelineWidget::setParams(int TotalFrames)
 	totalFrames = TotalFrames;
 	selectedFrame = 0;
 	rangeStartFrame = 0;
-	rangeEndFrame = TotalFrames - 1;
+	rangeEndFrame = TotalFrames - 10;
 	update();
 }
 

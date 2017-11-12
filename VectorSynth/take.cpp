@@ -10,9 +10,9 @@
 Take::Take()
 {
 	timeFrames = 0;
-	timeStart = 0;
 	timeEnd = 0;
 	isLive = false;
+	isRecording = false;
 	frameDuration = 0;
 }
 
@@ -39,6 +39,8 @@ void Take::LoadTake(QString Name)
 {
 	Destroy();
 
+	name = Name;
+
 	QDir dir("project/" + Name);
 
 	QStringList trackVidFilter;
@@ -62,7 +64,7 @@ void Take::LoadTake(QString Name)
 			qDebug() << "BAD TRACKER FILES";
 	}
 
-	QFile file("project/take/info.take");
+	QFile file("project/" + Name + "/" + Name + ".take");
 
 	if (file.open(QIODevice::ReadOnly | QIODevice::Text))
 	{
@@ -94,7 +96,7 @@ void Take::Save()
 	QJsonDocument jsonDoc(jsonObj);
 	QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
 
-	QFile file("project/take/info.take");
+	QFile file("project/" + name + "/" + name + ".take");
 
 	if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
 	{
@@ -108,7 +110,6 @@ void Take::Save()
 
 void Take::_AdjustRuntime()
 {
-	timeStart = 0;
 	timeEnd = 0;
 
 	for (int i = 0; i < trackers.count(); ++i)
@@ -121,9 +122,9 @@ void Take::_AdjustRuntime()
 			timeEnd = tracker->frameCount;
 	}
 
-	timeFrames = timeEnd - timeStart + 1;
+	timeFrames = timeEnd + 1;
 
-	qDebug() << "Timeline" << timeStart << timeEnd << timeFrames;
+	qDebug() << "Timeline" << timeEnd << timeFrames;
 
 	markers.clear();
 
@@ -317,7 +318,7 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 
 				// Check tolerance in world space
 				float distSqr = (c1 - c2).lengthSquared();
-				const float rayTol = 0.005f;
+				const float rayTol = 0.01f;
 				const float rayTolSqr = rayTol * rayTol;
 				
 				if (distSqr <= rayTolSqr)
@@ -392,15 +393,84 @@ void Take::Build3DMarkers(int StartFrame, int EndFrame)
 		// Distribute groups into 3D markers.
 		for (int iG = 0; iG < markerGroups.size(); ++iG)
 		{
-			Marker3D m = {};
-			m.pos = markerGroups[iG].avgPos /= markerGroups[iG].count;
-			m.sources = markerGroups[iG].sources;
-			markers[i].push_back(m);
+			if (markerGroups[iG].sources.size() > 2)
+			{
+				Marker3D m = {};
+				m.pos = markerGroups[iG].avgPos /= markerGroups[iG].count;
+				m.sources = markerGroups[iG].sources;
+				m.id = 0;
+				m.type = Marker3D::T_UNLABLED;
+				markers[i].push_back(m);
+			}
 		}
 	}
 
 	float t1 = (t.nsecsElapsed() / 1000) / 1000.0;
 	qDebug() << "Build 3D markers:" << t1 << "ms";
+}
+
+void Take::BuildLabels(int StartFrame, int EndFrame)
+{
+	qDebug() << "Building labels";
+
+	// Reset labels
+	labels.clear();
+	for (int i = 0; i < timeFrames; ++i)
+	{
+		for (int m = 0; m < markers[i].size(); ++m)
+		{
+			markers[i][m].id = 0;
+			markers[i][m].type = Marker3D::T_UNLABLED;
+		}
+	}
+
+	int labelCount = 0;
+	float markerSearchTolerance = 0.10f;
+	float markerSearchTolearnceSqr = markerSearchTolerance * markerSearchTolerance;
+
+	for (int f = 0; f < timeFrames; ++f)
+	{
+		// Uniquely identify each label in the scene.
+		for (int iM = 0; iM < markers[f].size(); ++iM)
+		{
+			Marker3D* m = &markers[f][iM];
+			bool found = false;
+
+			if (f > 0)
+			{
+				// Compare to previous frame.
+				Marker3D* c = 0;
+				float d = markerSearchTolearnceSqr;
+
+				for (int iP = 0; iP < markers[f - 1].size(); ++iP)
+				{
+					Marker3D* mP = &markers[f - 1][iP];
+
+					float newDist = (m->pos - mP->pos).lengthSquared();
+					if (newDist <= d)
+					{
+						c = mP;
+						d = newDist;
+					}
+				}
+
+				if (c)
+				{
+					m->id = c->id;
+					m->type = Marker3D::T_LABLED;
+					m->velocity = m->pos - c->pos;
+					c->bVelocity = c->pos - m->pos;
+					found = true;
+				}
+			}
+
+			if (!found)
+			{
+				m->id = labelCount++;
+				m->type = Marker3D::T_LABLED;				
+			}
+		}
+	}
 }
 
 void Take::SaveSSBAFile()

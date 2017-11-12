@@ -32,13 +32,9 @@ void Model::createFromOBJ(QString FileName)
 
 SceneView::SceneView(QWidget *Parent) :
 	QOpenGLWidget(Parent),
-	_indexBuf(QOpenGLBuffer::IndexBuffer),
+	//_indexBuf(QOpenGLBuffer::IndexBuffer),
 	_initialized(false)
 {
-	_scanCurrentMaxPoints = 0;
-	_scanPatternVertCount = 4000;
-	_scanData = new VertexData[_scanPatternVertCount];
-
 	QSurfaceFormat format;
 	format.setSamples(4);
 	setFormat(format);
@@ -56,11 +52,71 @@ SceneView::SceneView(QWidget *Parent) :
 	_mouseLeft = false;
 	_mouseRight = false;
 
-	_mainFont = QFont("Arial", 8);
-
 	showMarkerSources = false;
 	showRays = false;
 	showExpandedMarkers = false;
+	selectWorldBasis = false;
+
+	// Font stuff.
+	int fontSheetWidth = 1024;
+	int fontSheetHeight = 512;
+	int fontGlyphPadding = 10;
+	_fontSheet = new QImage(fontSheetWidth, fontSheetHeight, QImage::Format::Format_ARGB32);
+	QPainter p(_fontSheet);
+	p.setRenderHint(QPainter::Antialiasing);
+	p.setRenderHint(QPainter::SmoothPixmapTransform);
+	p.setRenderHint(QPainter::HighQualityAntialiasing);
+	p.fillRect(0, 0, fontSheetWidth, fontSheetHeight, QColor(0, 0, 0, 255));
+
+	QFont font("Arial", 24);
+	QFontMetrics fm(font);
+
+	p.setFont(font);
+	p.setPen(QPen(QColor(255, 255, 255, 255)));
+
+	int x = fontGlyphPadding;
+	int y = fontGlyphPadding;
+	int maxY = 0;
+
+	for (int i = 33; i < 127; ++i)
+	{
+		char c = i;
+
+		FontGlyph glyph;
+		glyph.bounds = fm.boundingRect(c);
+		glyph.advance = fm.width(c);
+
+		if (x + glyph.bounds.width() + fontGlyphPadding >= fontSheetWidth)
+		{
+			x = fontGlyphPadding;
+			y += maxY + fontGlyphPadding;
+			maxY = 0;
+		}
+
+		if (glyph.bounds.height() > maxY)
+			maxY = glyph.bounds.height();
+
+		int left = fm.leftBearing(c);
+
+		QRect sheetR(x, y, glyph.bounds.width(), glyph.bounds.height());
+
+		//p.fillRect(x, y, glyph.bounds.width(), glyph.bounds.height(), QColor(128, 0, 0, 255));
+		//p.fillRect(x - 1, y - 1, 1, 1, QColor(0, 128, 0, 255));
+		p.drawText(x - glyph.bounds.x(), y - glyph.bounds.y(), QChar(c));
+
+		int bx = glyph.bounds.x();
+
+		glyph.uvX1 = (x - 1) / (float)fontSheetWidth;
+		glyph.uvY1 = (y - 1) / (float)fontSheetHeight;
+		glyph.uvX2 = (x + glyph.bounds.width() + 1) / (float)fontSheetWidth;
+		glyph.uvY2 = (y + glyph.bounds.height() + 1) / (float)fontSheetHeight;
+
+		x += glyph.bounds.width() + fontGlyphPadding;
+
+		_fontGlyphs[c] = glyph;
+	}
+
+	_fontSheet->save("font_sheet.png");
 }
 
 void SceneView::gizmoClear()
@@ -71,30 +127,6 @@ void SceneView::gizmoClear()
 void SceneView::gizmoPush(VertexData Vert)
 {
 	_gizmoData[_gizmoIndex++] = Vert;
-}
-
-void SceneView::pushSamplePoint(QVector3D Pos, QVector3D Color)
-{
-	/*
-	// Shift all the points
-	if (_scanCurrentMaxPoints == _scanPatternVertCount)
-	{
-		for (int i = 0; i < _scanPatternVertCount - 1; ++i)
-		{
-			_scanData[i] = _scanData[i + 1];
-		}
-	}
-
-	if (_scanCurrentMaxPoints < _scanPatternVertCount)
-		++_scanCurrentMaxPoints;
-
-	_scanData[_scanCurrentMaxPoints - 1].position = Pos;
-	_scanData[_scanCurrentMaxPoints - 1].color = QVector3D(1, 1, 1);
-	*/
-
-	_scanData[_scanCurrentMaxPoints].position = Pos;
-	_scanData[_scanCurrentMaxPoints].color = Color;
-	++_scanCurrentMaxPoints;
 }
 
 void SceneView::initializeGL()
@@ -138,8 +170,21 @@ void SceneView::initializeGL()
 		close();
 
 	//---------------------------------------------------------------------------------
+	// Font Shader
+	//---------------------------------------------------------------------------------
+	if (!_fontShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "assets/shaders/font.vert"))
+		close();
+
+	if (!_fontShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "assets/shaders/font.frag"))
+		close();
+
+	if (!_fontShader.link())
+		close();
+
+	//---------------------------------------------------------------------------------
 	// Cube Mesh.
 	//---------------------------------------------------------------------------------
+	/*
 	float hw = 0.1f * 0.5f;
 	VertexDataShaded verts[] = 
 	{
@@ -202,6 +247,7 @@ void SceneView::initializeGL()
 	_indexBuf.bind();
 	_indexBuf.allocate(indices, sizeof(indices));
 	_indexCount = sizeof(indices) / sizeof(GLushort);
+	*/
 
 	//---------------------------------------------------------------------------------
 	// Grid Mesh.
@@ -233,15 +279,6 @@ void SceneView::initializeGL()
 	_gridPrimCount = sizeof(gridVerts) / sizeof(VertexData);
 
 	//---------------------------------------------------------------------------------
-	// Scan Pattern Buffer.
-	//---------------------------------------------------------------------------------
-	_scanPatternBuffer.create();
-	_scanPatternBuffer.bind();
-	_scanPatternBuffer.setUsagePattern(QOpenGLBuffer::StreamDraw);
-	_scanPatternBuffer.allocate((_scanPatternVertCount) * sizeof(VertexData));
-	_scanIndex = 0;
-
-	//---------------------------------------------------------------------------------
 	// Gizmo Buffer.
 	//---------------------------------------------------------------------------------
 	_gizmoBufferSize = 1000;
@@ -256,6 +293,25 @@ void SceneView::initializeGL()
 	// Load Models.
 	//---------------------------------------------------------------------------------
 	_sphereModel.createFromOBJ("assets/models/sphere.obj");
+
+	//---------------------------------------------------------------------------------
+	// Fonts.
+	//---------------------------------------------------------------------------------
+	_fontTexture = new QOpenGLTexture(*_fontSheet);
+	//_fontTexture->setMinificationFilter(QOpenGLTexture::Nearest);
+	//_fontTexture->setMagnificationFilter(QOpenGLTexture::Nearest);
+
+	_fontTexture->generateMipMaps();
+	_fontTexture->setMinificationFilter(QOpenGLTexture::LinearMipMapLinear);
+	_fontTexture->setMagnificationFilter(QOpenGLTexture::Linear);
+
+	_fontSpriteMax = 2048;
+	_fontSpriteCount = 0;
+
+	_fontVertBuf.create();
+	_fontVertBuf.bind();
+	_fontVertBuf.allocate(_fontSpriteMax * 6 * sizeof(FontVertex));
+	_fontVerts = new FontVertex[_fontSpriteMax * 4];
 
 	//---------------------------------------------------------------------------------
 	// General.
@@ -286,28 +342,6 @@ void SceneView::tick()
 	_lastTime = nt;
 
 	update();
-}
-
-void SceneView::setPattern(float XFreq, float XMin, float XMax, float YFreq, float YMin, float YMax, float Speed)
-{
-	_scanXFreq = XFreq;
-	_scanXMin = XMin;
-	_scanXMax = XMax;
-	_scanYFreq = YFreq;
-	_scanYMin = YMin;
-	_scanYMax = YMax;
-	_scanSpeed = Speed;
-
-	restartPattern();
-}
-
-void SceneView::restartPattern()
-{
-	_scanXAccum = (float)M_PI_2;
-	_scanYAccum = 0.0f;
-	_scanIndex = 0;
-	_scanCurrentMaxPoints = 0;
-	//memset(_scanData, 0, _scanPatternVertCount * sizeof(VertexData));
 }
 
 void _ClosestPointsLines(QVector3D P1, QVector3D D1, QVector3D P2, QVector3D D2, QVector3D* C1, QVector3D* C2)
@@ -344,6 +378,8 @@ void SceneView::paintGL()
 	glFrontFace(GL_CCW);
 	glCullFace(GL_BACK);
 
+	_fontSpriteCount = 0;
+
 	_camViewMat.setToIdentity();
 	_camViewMat.rotate(-90, QVector3D(1, 0, 0));
 	_camViewMat.translate(0, _camZoom, 0);
@@ -367,19 +403,23 @@ void SceneView::paintGL()
 	_shadedShader.setUniformValue("u_model_mat", modelMat);
 	_shadedShader.setUniformValue("u_color", QVector4D(1.0f, 0.5f, 0.3f, 1.0f));
 
+	/*
 	_arrayBuf.bind();
 	_shadedShader.setAttributeBuffer(shadedVertexLocation, GL_FLOAT, 0 * sizeof(float), 3, sizeof(VertexDataShaded));
 	_shadedShader.setAttributeBuffer(shadedColorLocation, GL_FLOAT, 3 * sizeof(float), 3, sizeof(VertexDataShaded));
 	_shadedShader.setAttributeBuffer(shadedNormalLocation, GL_FLOAT, 6 * sizeof(float), 3, sizeof(VertexDataShaded));
 	_indexBuf.bind();
+	*/
 	/*
 	glDrawElements(GL_TRIANGLES, _indexCount, GL_UNSIGNED_SHORT, 0);
 
 	_shadedShader.setUniformValue("u_mvp_mat", _projMat * viewMat * worldMat * cam2Mat);
 	glDrawElements(GL_TRIANGLES, _indexCount, GL_UNSIGNED_SHORT, 0);
 	*/
+	/*
 	_arrayBuf.release();
 	_indexBuf.release();
+	*/
 
 	//----------------------------------------------------------------------------------------
 	// Draw Models
@@ -394,7 +434,8 @@ void SceneView::paintGL()
 
 	if (take)
 	{
-		for (int fI = timelineFrame - 100; fI <= timelineFrame; ++fI)
+		int ghostBalls = 0;
+		for (int fI = timelineFrame - ghostBalls; fI <= timelineFrame; ++fI)
 		{
 			if (fI >= 0 && fI < take->timeFrames)
 			{
@@ -414,10 +455,40 @@ void SceneView::paintGL()
 
 						_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * markerMat);
 
+						QVector4D markerColor;
+
 						if (_selectedIdx != i)
-							_minimalShader.setUniformValue("u_color", QVector4D(1, 1, 1, 1));
+						{
+							if (m->type == Marker3D::T_UNLABLED)
+							{
+								markerColor = QVector4D(1.0f, 0, 0.0f, 1);
+							}
+							else if (m->type == Marker3D::T_GHOST)
+							{
+								markerColor = QVector4D(0.0f, 0, 0.0f, 0.5f);
+							}
+							else if (m->type == Marker3D::T_LABLED)
+							{
+								//markerColor = QVector4D(0.0f, 1.0f, 0.0f, 1);
+
+								markerColor.setX((((m->id + 1) * 120) % 255) / 255.0f);
+								markerColor.setY((((m->id + 5) * 460) % 255) / 255.0f);
+								markerColor.setZ((((m->id + 6) * 1380) % 255) / 255.0f);
+								markerColor.setW(1.0f);
+
+								QVector2D screenPos;
+								if (_projectToScreen(m->pos + QVector3D(0, -0.02f, 0), screenPos))
+								{
+									_drawText(screenPos.x(), screenPos.y(), QString::number(m->id), markerColor, 0.4f, SVTA_MIDDLE);
+								}
+							}
+						}
 						else
-							_minimalShader.setUniformValue("u_color", QVector4D(0.5f, 1, 0.5f, 1));
+						{
+							markerColor = QVector4D(0.1f, 1, 0.1f, 1);
+						}
+
+						_minimalShader.setUniformValue("u_color", markerColor);
 					}
 					else
 					{
@@ -463,17 +534,6 @@ void SceneView::paintGL()
 		}
 	}
 
-	/*
-	{
-		// Pick origin.
-		QMatrix4x4 markerMat;
-		markerMat.translate(_pickPos);
-
-		_minimalShader.setUniformValue("u_mvp_mat", _projMat * _camViewMat * _pointWorldMat * markerMat);
-		glDrawElements(GL_TRIANGLES, _sphereModel.indexCount, GL_UNSIGNED_SHORT, 0);
-	}
-	*/
-
 	_sphereModel.vertBuffer.release();
 	_sphereModel.indexBuffer.release();
 
@@ -497,19 +557,6 @@ void SceneView::paintGL()
 
 	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat);
 
-	_scanPatternBuffer.bind();
-	_scanPatternBuffer.write(0, _scanData, _scanCurrentMaxPoints * sizeof(VertexData));
-	_basicShader.setAttributeBuffer(vertexLocation, GL_FLOAT, 0, 3, sizeof(VertexData));
-	_basicShader.setAttributeBuffer(colorLocation, GL_FLOAT, 3 * sizeof(float), 3, sizeof(VertexData));
-	_basicShader.setUniformValue("u_color", QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
-	glDrawArrays(GL_LINE_STRIP, 0, _scanCurrentMaxPoints);
-
-	//_basicShader.setUniformValue("u_color", QVector4D(1.0f, 0.5f, 0.5f, 1.0f));
-	//glDrawArrays(GL_LINE_STRIP, 0, _scanCurrentMaxPoints);
-
-	//_basicShader.setUniformValue("u_color", QVector4D(1.0f, 0.5f, 0.3f, 1.0f));
-	//glDrawArrays(GL_LINE_STRIP, _scanPatternVertCount, 2);
-
 	glEnable(GL_DEPTH_TEST);
 
 	//---------------------------------------------------------------------------------
@@ -523,20 +570,8 @@ void SceneView::paintGL()
 	
 	gizmoClear();
 
-	// World Basis.
-	QVector3D o = _lastSelectedPos[1];
-	/*
-	gizmoPush({ o ,{ 1, 0, 0 } }); gizmoPush({ o + QVector3D(1, 0, 0) ,{ 1, 0, 0 } });
-	gizmoPush({ o ,{ 0, 1, 0 } }); gizmoPush({ o + QVector3D(0, 1, 0) ,{ 0, 1, 0 } });
-	gizmoPush({ o ,{ 0, 0, 1 } }); gizmoPush({ o + QVector3D(0, 0, 1) ,{ 0, 0, 1 } });
-	*/
-
-	if (take)
+	if (take && timelineFrame >= 0 && timelineFrame < take->timeFrames)
 	{
-		//gizmoPush({ o ,{ 1, 0, 0 } }); gizmoPush({ o + take->wX ,{ 1, 0, 0 } });
-		//gizmoPush({ o ,{ 0, 1, 0 } }); gizmoPush({ o + take->wY ,{ 0, 1, 0 } });
-		//gizmoPush({ o ,{ 0, 0, 1 } }); gizmoPush({ o + take->wZ ,{ 0, 0, 1 } });
-
 		if (showRays)
 		{
 			for (int i = 0; i < take->trackers.count(); ++i)
@@ -558,6 +593,18 @@ void SceneView::paintGL()
 						//gizmoPush({ t->decoder->refWorldPos + m->refWorldRayD,{ 0, 1, 1 } });
 					}
 				}
+			}
+		}
+
+		{
+			for (int i = 0; i < take->markers[timelineFrame].size(); ++i)
+			{
+				Marker3D* m = &take->markers[timelineFrame][i];
+				gizmoPush({ m->pos ,{ 1, 0, 0 } });
+				gizmoPush({ m->pos + m->velocity,{ 1, 0, 0 } });
+
+				gizmoPush({ m->pos ,{ 0, 1, 0 } });
+				gizmoPush({ m->pos + m->bVelocity,{ 0, 1, 0 } });
 			}
 		}
 
@@ -590,10 +637,13 @@ void SceneView::paintGL()
 	//gizmoPush({ _pickPos, { 1, 0, 0 } }); 
 	//gizmoPush({ _pickPos + _pickDir * 10, { 1, 0, 0 } });
 
-	for (int i = 0; i < 2; ++i)
+	if (selectWorldBasis)
 	{
-		gizmoPush({ _lastSelectedPos[i], { 0.5f, 0.5f, 0.5f } }); 
-		gizmoPush({ _lastSelectedPos[i + 1], { 0.5f, 0.5f, 0.5f } });
+		for (int i = 0; i < 2; ++i)
+		{
+			gizmoPush({ _lastSelectedPos[i], { 0.5f, 0.5f, 0.5f } });
+			gizmoPush({ _lastSelectedPos[i + 1], { 0.5f, 0.5f, 0.5f } });
+		}
 	}
 	
 	_basicShader.setUniformValue("mvp_matrix", _projMat * _camViewMat);
@@ -709,19 +759,74 @@ void SceneView::paintGL()
 		}
 	}
 
-	/*
-	// Retrieve last OpenGL color to use as a font color
-	GLdouble glColor[4];
-	//glGetDoublev(GL_CURRENT_COLOR, glColor);
-	QColor fontColor = QColor(255, 255, 255, 255);
+	//_drawText(0, 50, "Large font is large 1234567890 {}", QVector4D(1, 1, 1, 1), 1.0f, SVTA_LEFT);
+	//_drawText(0, 60, "Marker trajectory test!", QVector4D(1, 0, 0, 1), 1.0f, SVTA_LEFT);
 
-	// Render text
-	QPainter painter(this);
-	painter.setPen(fontColor);
-	painter.setFont(_mainFont);
-	painter.drawText(0, -100, "Hello");
-	painter.end();
-	*/
+	if (take)
+	{
+		for (int i = 0; i < take->trackers.count(); ++i)
+		{
+			TakeTracker* t = take->trackers[i];
+
+			QVector2D screenPos;
+			if (_projectToScreen(t->worldPos + QVector3D(0, -0.1f, 0), screenPos))
+			{
+				_drawText(screenPos.x(), screenPos.y(), t->name, QVector4D(1, 1, 1, 1), 0.4f, SVTA_MIDDLE);
+			}
+		}
+	}
+
+	if (take)
+	{
+		if (take->isRecording)
+		{
+			_drawText(10, 40, "RECORDING " + take->name, QVector4D(0.5, 0.2, 0.2, 1), 1.0f, SVTA_LEFT);
+		}
+	}
+
+	//--------------------------------------------------------------------------------------------------
+	// Render Font Sprites.
+	//--------------------------------------------------------------------------------------------------
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	
+	if (_fontSpriteCount > 0)
+	{
+		int fontVertexLocation = _fontShader.attributeLocation("a_position");
+		int fontUVsLocation = _fontShader.attributeLocation("a_uvs");
+		int fontColorLocation = _fontShader.attributeLocation("a_color");
+		_fontShader.bind();
+		_fontShader.enableAttributeArray(fontVertexLocation);
+		_fontShader.enableAttributeArray(fontUVsLocation);
+		_fontShader.enableAttributeArray(fontColorLocation);
+		_fontShader.setUniformValue("u_color", QVector4D(1, 1, 1, 1));
+		_fontTexture->bind();
+
+		_fontVertBuf.bind();
+		_fontVertBuf.write(0, _fontVerts, _fontSpriteCount * 6 * sizeof(FontVertex));
+		_fontShader.setAttributeBuffer(fontVertexLocation, GL_FLOAT, 0 * sizeof(float), 3, sizeof(FontVertex));
+		_fontShader.setAttributeBuffer(fontUVsLocation, GL_FLOAT, 3 * sizeof(float), 2, sizeof(FontVertex));
+		_fontShader.setAttributeBuffer(fontColorLocation, GL_FLOAT, 5 * sizeof(float), 4, sizeof(FontVertex));
+
+		QMatrix4x4 pm;
+		glDrawArrays(GL_TRIANGLES, 0, _fontSpriteCount * 6);
+
+		_fontVertBuf.release();
+	}
+
+	glDisable(GL_BLEND);
+}
+
+bool SceneView::_projectToScreen(QVector3D Pos, QVector2D& ScreenPoint)
+{
+	QVector4D pos = _projMat * _camViewMat * QVector4D(Pos.x(), Pos.y(), Pos.z(), 1);
+	ScreenPoint = (pos.toVector3DAffine().toVector2D() * 0.5f + QVector2D(0.5f, 0.5f)) * QVector2D(width(), height());
+	ScreenPoint.setY(height() - ScreenPoint.y());
+
+	return (pos.z() > 0);
 }
 
 void SceneView::mousePressEvent(QMouseEvent* Event)
@@ -792,28 +897,29 @@ void SceneView::wheelEvent(QWheelEvent* Event)
 void SceneView::_mousePick(QVector2D ScreenPos)
 {
 	QVector2D ndc = (ScreenPos / QVector2D(width(), height())) * QVector2D(2, -2) - QVector2D(1, -1);
-	QMatrix4x4 invViewProj = (_projMat * _camViewMat).inverted();
-	QVector4D p(ndc.x(), ndc.y(), 1.002f, 1.0f);
-	QVector4D projP = invViewProj * p;
-
-	_pickDir = QVector3D(projP.x() / projP.w(), projP.y() / projP.w(), projP.z() / projP.w());
-	_pickDir.normalize();
-
+	QVector4D rayClip(ndc.x(), ndc.y(), -1.0f, 1.0f);
+	QVector4D rayEye = _projMat.inverted() * rayClip;
+	rayEye.setZ(-1.0f);
+	rayEye.setW(0.0);
+	QVector3D rayWorld = (_camViewMat.inverted() * rayEye).toVector3D();
+	rayWorld.normalize();
+	
 	QVector4D hcPos = (_camViewMat).inverted() * QVector4D(0, 0, 0, 1);
 	_pickPos = QVector3D(hcPos.x(), hcPos.y(), hcPos.z());
+	_pickDir = rayWorld;
 
 	if (take)
 	{
 		int closestIdx = -1;
 		float closestD = 10000.0f;
 
-		if (timelineFrame >= take->timeStart && timelineFrame <= take->timeEnd)
+		if (timelineFrame >= 0 && timelineFrame <= take->timeEnd)
 		{
 			for (int i = 0; i < take->markers[timelineFrame].size(); ++i)
 			{
 				float d = take->markers[timelineFrame][i].pos.distanceToLine(_pickPos, _pickDir);
 
-				if (d < 0.05f && d < closestD)
+				if (d < 0.02f && d < closestD)
 				{
 					closestD = d;
 					closestIdx = i;
@@ -822,22 +928,89 @@ void SceneView::_mousePick(QVector2D ScreenPos)
 
 			_selectedIdx = closestIdx;
 
-			if (_selectedIdx != -1)
+			if (selectWorldBasis)
 			{
-				float scaledDistance = ((_lastSelectedPos[0] - take->markers[timelineFrame][_selectedIdx].pos).length());
-				qDebug() << "Distance" << scaledDistance;
-
-				for (int i = 1; i >= 0; --i)
+				if (_selectedIdx != -1)
 				{
-					_lastSelectedPos[i + 1] = _lastSelectedPos[i];
+					float scaledDistance = ((_lastSelectedPos[0] - take->markers[timelineFrame][_selectedIdx].pos).length());
+					qDebug() << "Distance" << scaledDistance;
+
+					for (int i = 1; i >= 0; --i)
+					{
+						_lastSelectedPos[i + 1] = _lastSelectedPos[i];
+					}
+
+					_lastSelectedPos[0] = take->markers[timelineFrame][_selectedIdx].pos;
 				}
 
-				_lastSelectedPos[0] = take->markers[timelineFrame][_selectedIdx].pos;
+				//qDebug() << "0" << _lastSelectedPos[0];
+				//qDebug() << "1" << _lastSelectedPos[1];
+				//qDebug() << "2" << _lastSelectedPos[2];
 			}
-
-			qDebug() << "0" << _lastSelectedPos[0];
-			qDebug() << "1" << _lastSelectedPos[1];
-			qDebug() << "2" << _lastSelectedPos[2];
 		}
+	}
+}
+
+void SceneView::_drawText(int X, int Y, QString Text, QVector4D Color, float Scale, TextAlignment Alignment)
+{
+	float scale = Scale;
+	float x = X;
+	float y = -Y;
+	float xOffset = 0.0f;
+
+	if (Alignment == SVTA_RIGHT || Alignment == SVTA_MIDDLE)
+	{
+		for (int i = 0; i < Text.length(); ++i)
+		{
+			char c = Text[i].toLatin1();
+			FontGlyph* g = &_fontGlyphs[c];
+			xOffset -= g->advance * scale;
+		}
+	}
+
+	if (Alignment == SVTA_MIDDLE)
+	{
+		xOffset *= 0.5f;
+	}
+
+	x += xOffset;
+	
+	for (int i = 0; i < Text.length(); ++i)
+	{
+		char c = Text[i].toLatin1();
+
+		if (c == ' ')
+		{
+			x += 24 * scale;
+			continue;
+		}
+
+		FontGlyph* g = &_fontGlyphs[c];
+
+		QVector3D v0(x + (g->bounds.left() - 1) * scale, y - (g->bounds.top() + 1) * scale, 1);
+		QVector3D v1(x + (g->bounds.left() - 1) * scale, y - (g->bounds.bottom() + 4) * scale, 1);
+		QVector3D v2(x + (g->bounds.right() + 2) * scale, y - (g->bounds.bottom() + 4) * scale, 1);
+		QVector3D v3(x + (g->bounds.right() + 2) * scale, y - (g->bounds.top() + 1) * scale, 1);
+
+		v0 /= QVector2D(width(), height());
+		v1 /= QVector2D(width(), height());
+		v2 /= QVector2D(width(), height());
+		v3 /= QVector2D(width(), height());
+
+		FontVertex fv0 = { v0,{ g->uvX1, g->uvY1 }, Color };
+		FontVertex fv1 = { v1,{ g->uvX1, g->uvY2 }, Color };
+		FontVertex fv2 = { v2,{ g->uvX2, g->uvY2 }, Color };
+		FontVertex fv3 = { v3,{ g->uvX2, g->uvY1 }, Color };
+
+		_fontVerts[_fontSpriteCount * 6 + 0] = fv0;
+		_fontVerts[_fontSpriteCount * 6 + 1] = fv1;
+		_fontVerts[_fontSpriteCount * 6 + 2] = fv2;
+
+		_fontVerts[_fontSpriteCount * 6 + 3] = fv0;
+		_fontVerts[_fontSpriteCount * 6 + 4] = fv2;
+		_fontVerts[_fontSpriteCount * 6 + 5] = fv3;
+
+		x += g->advance * scale;
+		++_fontSpriteCount;
 	}
 }

@@ -32,7 +32,8 @@ public slots:
 	void OnViewFeed(int ClientId, int StreamMode);
 	void InternalRecordingStart();
 	void OnResetFrameIds();
-	void OnStartRecording();
+	void OnStartRecording(QString TakeName);
+	void OnStopRecording();
 	void OnStartCalibrating(int TrackerId);
 	void OnStopCalibrating();
 
@@ -49,7 +50,7 @@ private:
 
 	std::map<int, TrackerConnection*> _connections;
 
-	bool			_recording = false;
+	//bool			_recording = false;
 	int				_nextConnectionId = 0;
 	QTcpServer*		_tcpServer;
 

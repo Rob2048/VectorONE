@@ -150,16 +150,14 @@ void TrackerConnection::Unlock()
 	_mutex.unlock();
 }
 
-void TrackerConnection::StartRecording()
+void TrackerConnection::StartRecording(QString TakeName)
 {
 	StopRecording();
-
-	char fileName[256];
 
 	if (streamMode == 1 || streamMode == 2)
 	{
 		QByteArray jsonBytes = props.GetJSON(true);
-		QFile file("project\\take\\" + QString::number(serial) + ".tracker");
+		QFile file("project/" + TakeName + "/" + QString::number(serial) + ".tracker");
 
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
 		{
@@ -171,16 +169,18 @@ void TrackerConnection::StartRecording()
 		file.close();
 	}
 
+	char fileName[256];
+
 	if (streamMode == 1)
 	{
-		sprintf(fileName, "project\\take\\%u.trakvid", serial);
+		sprintf(fileName, "project\\%s\\%u.trakvid", TakeName.toLatin1().data(), serial);
 		recordFile = fopen(fileName, "wb");
 		recording = true;
 		_gotDataFrame = false;
 	}
 	else if (streamMode == 2)
 	{
-		sprintf(fileName, "project\\take\\%u.trakblobs", serial);
+		sprintf(fileName, "project\\%s\\%u.trakblobs", TakeName.toLatin1().data(), serial);
 		recordFile = fopen(fileName, "wb");
 		recording = true;
 	}

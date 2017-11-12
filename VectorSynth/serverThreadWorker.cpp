@@ -182,35 +182,29 @@ void ServerThreadWorker::OnResetFrameIds()
 	takeStartFrameId = 0;
 }
 
-void ServerThreadWorker::OnStartRecording()
+void ServerThreadWorker::OnStartRecording(QString TakeName)
 {
-	if (_recording)
+	qDebug() << "Start Recording";
+
+	takeStartFrameId = 0;
+
+	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 	{
-		qDebug() << "Stop Recording";
-		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		{
-			//it->second->socket->write("ec\n");
-			it->second->StopRecording();
-		}
+		//it->second->socket->write("ec\n");
+		//it->second->streaming = false;
+		//it->second->recording = false;
+		it->second->StartRecording(TakeName);
 	}
-	else
+}
+
+void ServerThreadWorker::OnStopRecording()
+{
+	qDebug() << "Stop Recording";
+	for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
 	{
-		qDebug() << "Start Recording";
-
-		takeStartFrameId = 0;
-
-		for (std::map<int, TrackerConnection*>::iterator it = _connections.begin(); it != _connections.end(); ++it)
-		{
-			//it->second->socket->write("ec\n");
-			//it->second->streaming = false;
-			//it->second->recording = false;
-			it->second->StartRecording();
-		}
-
-		//QTimer::singleShot(2000, this, SLOT(InternalRecordingStart()));
+		//it->second->socket->write("ec\n");
+		it->second->StopRecording();
 	}
-
-	_recording = !_recording;
 }
 
 void ServerThreadWorker::OnStartCalibrating(int TrackerId)

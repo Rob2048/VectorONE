@@ -3,12 +3,13 @@
 #include "cameraView.h"
 #include "sceneView.h"
 #include <QLabel>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
 	_take(0)
-{
+{	
 	_deviceListMapper = new QSignalMapper(this);
 
     ui->setupUi(this);
@@ -38,6 +39,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	_liveTake = new LiveTake();
 	_loadedTake = 0;
 	_take = _liveTake;
+	_recording = false;
 
 	_glView = new SceneView(ui->sceneViewDockContents);
 	ui->sceneViewDockContents->layout()->addWidget(_glView);
@@ -106,6 +108,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(this, &MainWindow::OnUpdateParams, _serverWorker, &ServerThreadWorker::OnUpdateTracker);
 	connect(this, &MainWindow::OnResetFrameIds, _serverWorker, &ServerThreadWorker::OnResetFrameIds);
 	connect(this, &MainWindow::OnStartRecording, _serverWorker, &ServerThreadWorker::OnStartRecording);
+	connect(this, &MainWindow::OnStopRecording, _serverWorker, &ServerThreadWorker::OnStopRecording);
 	connect(this, &MainWindow::OnStartCalibrating, _serverWorker, &ServerThreadWorker::OnStartCalibrating);
 	connect(this, &MainWindow::OnStopCalibrating, _serverWorker, &ServerThreadWorker::OnStopCalibrating);
 	connect(this, &MainWindow::OnStartViewSteam, _serverWorker, &ServerThreadWorker::OnViewFeed);
@@ -124,6 +127,8 @@ MainWindow::MainWindow(QWidget* parent) :
 	connect(ui->btnBuildFundamental, &QPushButton::clicked, this, &MainWindow::OnBuildFundamentalMatClicked);
 	connect(ui->btnBundleAdjust, &QPushButton::clicked, this, &MainWindow::OnBundleAdjustClicked);
 	connect(ui->btnBuild3D, &QPushButton::clicked, this, &MainWindow::OnBuild3DMarkersClicked);
+	connect(ui->btnAutoLabel, &QPushButton::clicked, this, &MainWindow::OnAutoLabelClicked);
+	connect(ui->btnSelectWorldBasis, &QPushButton::clicked, this, &MainWindow::OnSelectWorldBasisClicked);
 	connect(ui->btnAssignWorldBasis, &QPushButton::clicked, this, &MainWindow::OnAssignWorldBasisClicked);
 	connect(ui->btnPushToLive, &QPushButton::clicked, this, &MainWindow::OnPushToLiveClicked);
 	
@@ -163,21 +168,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	
 	ui->txtPlaySpeed->setValidator(new QDoubleValidator(0.01, 9.0, 2, this));
 
-	/*
-	ui->scrollArea->setWidgetResizable(true);
-
-	ui->scrollArea->setLayout(new QVBoxLayout());
-
-	QFrame inner = QFrame(ui->scrollArea);
-	inner.setLayout(QVBoxLayout())
-
-	scroll.setWidget(inner) # CRITICAL
-
-	for i in range(40) :
-		b = QPushButton(inner)
-		b.setText(str(i))
-		inner.layout().addWidget(b)
-		*/
+	updateTakeList();
 }
 
 MainWindow::~MainWindow()
@@ -413,8 +404,74 @@ void MainWindow::OnTrackerMarkersFrame(int TrackerId)
 
 void MainWindow::OnStartRecordingClick()
 {
-	// TODO: Create new take and save take info.
-	emit OnStartRecording();
+	if (!_recording)
+	{
+		_take = _liveTake;
+		_cameraView->take = _take;
+		_glView->take = _take;
+		_cameraView->update();
+
+		ui->btnStartRecording->setText("Stop Recording");
+		_recording = true;
+		_take->isRecording = true;		
+
+		// Find new take name
+		QDir dir("project");
+		QStringList takes = dir.entryList(QDir::Filter::Dirs | QDir::Filter::NoDotAndDotDot);
+		QString takeName = "";
+		int takeNameSuffix = 0;
+
+		while (true)
+		{
+			bool found = false;
+			takeName = "take_" + QString::number(takeNameSuffix++);
+
+			for (int i = 0; i < takes.size(); ++i)
+			{
+				if (takes[i] == takeName)
+				{
+					found = true;
+					break;
+				}
+			}
+
+			if (!found)
+				break;
+		}
+
+		qDebug() << "Saving new take" << takeName;
+		QDir().mkdir("project/" + takeName);
+
+		_take->name = takeName;
+
+		// NOTE: This code is duped from Take::Save().
+		QJsonObject jsonObj;
+		jsonObj["fps"] = 19941;
+
+		QJsonDocument jsonDoc(jsonObj);
+		QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::JsonFormat::Indented);
+
+		QFile file("project/" + takeName + "/" + takeName + ".take");
+
+		if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+		{
+			qDebug() << "Take: Save file failed";
+			return;
+		}
+
+		file.write(jsonBytes);
+		file.close();
+		
+		emit OnStartRecording(takeName);
+	}
+	else
+	{
+		ui->btnStartRecording->setText("Start Recording");
+		_recording = false;
+		_take->isRecording = false;
+		emit OnStopRecording();
+		updateTakeList();
+	}
 }
 
 void MainWindow::OnResetFrameIdsClick()
@@ -457,15 +514,23 @@ void MainWindow::OnSceneViewTimerTick()
 
 void MainWindow::OnLoadTakeClick()
 {
+	if (ui->lstTakes->currentItem() == 0)
+	{
+		QMessageBox msgBox(QMessageBox::Icon::Warning, "No take selected.", "You need to select a take to load.");
+		msgBox.exec();
+		return;
+	}
+
+	QString takeName = ui->lstTakes->currentItem()->text();
+
 	if (_loadedTake)
 		delete _loadedTake;
 
 	_loadedTake = new LoadedTake();
-	_loadedTake->LoadTake("take");
+	_loadedTake->LoadTake(takeName);
 	_glView->take = _loadedTake;
 	_cameraView->take = _loadedTake;
 	_take = _loadedTake;
-
 	_timeline->setParams(_take->timeFrames - 2);
 	_timelineCurrentFrame = -1;
 	_timelineRequestedFrame = 0;
@@ -483,9 +548,24 @@ void MainWindow::OnBuild3DMarkersClicked()
 {
 	if (_take)
 	{
-		_glView->restartPattern();
 		_take->Build3DMarkers(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
 	}
+}
+
+void MainWindow::OnAutoLabelClicked()
+{
+	if (_take)
+	{
+		_take->BuildLabels(_timeline->rangeStartFrame, _timeline->rangeEndFrame);
+	}
+}
+
+void MainWindow::OnSelectWorldBasisClicked()
+{
+	_glView->selectWorldBasis = !_glView->selectWorldBasis;
+	_glView->_lastSelectedPos[0] = QVector3D(0, 0, 0);
+	_glView->_lastSelectedPos[1] = QVector3D(0, 0, 0);
+	_glView->_lastSelectedPos[2] = QVector3D(0, 0, 0);
 }
 
 void MainWindow::OnAssignWorldBasisClicked()
@@ -680,4 +760,26 @@ void MainWindow::OnBroadcastRead()
 	prevTime = ts;
 
 	qDebug() << "Bcast " << td << QHostAddress(packet.senderAddress().toIPv4Address()).toString() << time;
+}
+
+void MainWindow::updateTakeList()
+{
+	QDir dir("project");
+
+	QStringList takes = dir.entryList(QDir::Filter::Dirs | QDir::Filter::NoDotAndDotDot);
+	ui->lstTakes->clear();
+	
+	for (int i = 0; i < takes.size(); ++i)
+	{
+		QString takeFileName = "project/" + takes[i] + "/" + takes[i] + ".take";
+		
+		qDebug() << "Checking take file:" << takeFileName;
+
+		QFile takeFile(takeFileName);
+
+		if (takeFile.exists())
+		{
+			ui->lstTakes->addItem(takes[i]);
+		}
+	}
 }

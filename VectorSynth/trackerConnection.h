@@ -59,7 +59,7 @@ public:
 	TrackerConnection(int Id, QTcpSocket* Socket, QObject* Parent);
 	~TrackerConnection();
 
-	void StartRecording();
+	void StartRecording(QString TakeName);
 	void StopRecording();
 
 	void RecordData(uint8_t* Data, int Len);

@@ -1022,6 +1022,39 @@ padding: 5px;</string>
          <property name="text">
           <string>Bundle Adjust</string>
          </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-sun.png</normaloff>icons8-sun.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>13</width>
+           <height>13</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnSelectWorldBasis">
+         <property name="text">
+          <string>Select World Basis</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-coordinate-system.png</normaloff>icons8-coordinate-system.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>13</width>
+           <height>13</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
         </widget>
        </item>
        <item>
@@ -1085,9 +1118,9 @@ padding: 5px;</string>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="btnIdentify3D">
+        <widget class="QPushButton" name="btnAutoLabel">
          <property name="text">
-          <string>Label Markers</string>
+          <string>Auto Label Markers</string>
          </property>
         </widget>
        </item>
@@ -1165,6 +1198,52 @@ padding: 5px;</string>
         </widget>
        </item>
        <item>
+        <widget class="QToolButton" name="btnRenameTake">
+         <property name="text">
+          <string>F</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-rename.png</normaloff>icons8-rename.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="btnDeleteTake">
+         <property name="text">
+          <string>F</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>icons8-waste.png</normaloff>icons8-waste.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>30</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="checkable">
+          <bool>false</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="horizontalSpacer_3">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
@@ -1182,22 +1261,26 @@ padding: 5px;</string>
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_9">
        <property name="spacing">
-        <number>6</number>
+        <number>0</number>
        </property>
        <property name="leftMargin">
-        <number>6</number>
+        <number>0</number>
        </property>
        <property name="topMargin">
-        <number>6</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
-        <number>6</number>
+        <number>0</number>
        </property>
        <property name="bottomMargin">
-        <number>6</number>
+        <number>0</number>
        </property>
        <item>
-        <widget class="QListView" name="lstTakes"/>
+        <widget class="QListWidget" name="lstTakes">
+         <property name="frameShape">
+          <enum>QFrame::NoFrame</enum>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>
@@ -1235,6 +1318,9 @@ padding: 5px;</string>
        </property>
        <item>
         <widget class="QToolButton" name="btnShowLiveToolbar">
+         <property name="toolTip">
+          <string>Show live view</string>
+         </property>
          <property name="text">
           <string>M</string>
          </property>
